@@ -21,3 +21,11 @@ PK ID_Альпиниста: integer
 Адрес: text
 Телефон: text
 Дата рождения: date
+
+
+Восхождения
+
+PK ID_Восхождения: integer
+Дата_начала: timestamp
+Дата_завершения: timestamp
+FK ID_Вершины: integer -> Вершины.ID_Вершины
