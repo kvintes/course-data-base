@@ -93,4 +93,34 @@ ALTER TABLE Восхождения DROP CONSTRAINT IF EXISTS CH_dates_begin_end;
 ALTER TABLE Восхождения ADD CONSTRAINT CH_dates_begin_end CHECK (Дата_начала < Дата_завершения)
 ;
 
---10 шаг добавление ограничений на Дата_начала < Дата_завершения +
+-- 10шаг создаем таблицу Вершины +
+--drop table if exists Вершины;
+create table if not EXISTS it.Вершины
+(
+    ID_Вершины integer not null
+    , Название text not null
+    , Высота integer not null -- значение высоты не может отрицательным
+    , Страна text not null
+    , Регион text not null
+    , constraint PK_Вершины primary key (ID_Вершины)
+)
+;
+
+--11 шаг добавление ограничений на Дата_начала < Дата_завершения +
+ALTER TABLE Вершины DROP CONSTRAINT IF EXISTS CH_heights;
+ALTER TABLE Вершины ADD CONSTRAINT CH_heights CHECK (Высота >= 0)
+;
+
+--12 шаг внешний ключ +
+--  Восхождения -> Вершины
+ALTER TABLE Восхождения ADD
+constraint FK_Восхождения__Вершины
+FOREIGN KEY (ID_Вершины)
+REFERENCES Вершины (ID_Вершины)
+ON DELETE CASCADE
+
+-- 13шаг Восхождения возможность вставки кортежа без указания первичного ключа +
+CREATE SEQUENCE IF NOT EXISTS it.Вершины_seq MINVALUE 0;
+alter TABLE Вершины alter column ID_Вершины set DEFAULT nextval('Вершины_seq');
+ALTER SEQUENCE Вершины_seq OWNED BY Вершины.ID_Вершины;
+

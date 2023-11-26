@@ -29,3 +29,13 @@ PK ID_Восхождения: integer
 Дата_начала: timestamp
 Дата_завершения: timestamp
 FK ID_Вершины: integer -> Вершины.ID_Вершины
+
+ВЕРШИНЫ
+
+PK ID_Вершины: integer
+Название: text
+Высота: integer
+Страна: text
+Регион: text
+
+FK ID_Вершины: integer -> Вершины.ID_Вершины
