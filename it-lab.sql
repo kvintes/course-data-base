@@ -124,3 +124,4 @@ CREATE SEQUENCE IF NOT EXISTS it.Вершины_seq MINVALUE 0;
 alter TABLE Вершины alter column ID_Вершины set DEFAULT nextval('Вершины_seq');
 ALTER SEQUENCE Вершины_seq OWNED BY Вершины.ID_Вершины;
 
+
