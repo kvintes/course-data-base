@@ -87,3 +87,10 @@ constraint FK_Альпинист_Восние__Восхождения
 FOREIGN KEY (ID_Восхождения)
 REFERENCES Восхождения (ID_Восхождения)
 ON DELETE CASCADE
+
+--9 шаг добавление ограничений на Дата_начала < Дата_завершения +
+ALTER TABLE Восхождения DROP CONSTRAINT IF EXISTS CH_dates_begin_end;
+ALTER TABLE Восхождения ADD CONSTRAINT CH_dates_begin_end CHECK (Дата_начала < Дата_завершения)
+;
+
+--10 шаг добавление ограничений на Дата_начала < Дата_завершения +
