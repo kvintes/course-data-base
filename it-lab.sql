@@ -55,4 +55,11 @@ CREATE SEQUENCE IF NOT EXISTS it.Альпинисты_seq MINVALUE 0;
 alter TABLE Альпинисты alter column ID_Альпиниста set DEFAULT nextval('Альпинисты_seq');
 ALTER SEQUENCE Альпинисты_seq OWNED BY Альпинисты.id_Альпиниста;
 
+--5 шаг внешний ключ 
+--  Альпинист_Восхождение -> Альпинисты
 
+ALTER TABLE Альпинист_Восхождение ADD
+constraint FK_Альпинист_Восние__Альпинисты
+FOREIGN KEY (ID_Альпиниста)
+REFERENCES Альпинисты (ID_Альпиниста)
+ON DELETE CASCADE
