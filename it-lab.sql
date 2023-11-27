@@ -299,6 +299,7 @@ group by Вершины.id_Вершины
 having count(id_Восхождения) > 4 
 order by Высота
 ; 
+
 -- 3.2. Для каждого альпиниста вывести список покорённых вершин, восхождения на которые длилось 30 или менее дней. В выборке должны
 -- присутствовать только следующие атрибуты: Имя альпиниста, название вершины, длительность восхождения. Результат упорядочить по ФИО,
 -- длительности. Альпинистов, для которых нет таких вершин не выводить
@@ -311,3 +312,49 @@ where
     Дата_завершения - Дата_начала <= interval '30 days'
 order by Альпинисты.ФИО, Дата_завершения - Дата_начала
 ;
+
+-- 3.3. Сформировать статистику восхождений по сезонам для завершённых восхождений. В выборке должны присутствовать только следующие
+-- атрибуты: название сезона (лето, зима и т.д.), число восхождений, количество альпинистов, совершивших восхождения, средняя
+-- продолжительность восхождения в днях.
+
+-- общий ЗАПРОС
+select sub_climbing.season_1, sub_climbing.count_climbing, sub_climbers.count_climbers
+from
+(
+    select sub_1.season_end as season_1, count(sub_1.id_Восхождения) as count_climbing from
+    (
+        select 
+        id_Восхождения, 
+        CASE 
+            WHEN date_part('month', Дата_завершения) = 12 or date_part('month', Дата_завершения) < 3  THEN 'winter'
+            WHEN date_part('month', Дата_завершения) > 2 and date_part('month', Дата_завершения) < 6 THEN 'spring'
+            WHEN date_part('month', Дата_завершения) > 5 and date_part('month', Дата_завершения) < 9 THEN 'summer'
+            ELSE 'autumn'
+        END as season_end
+
+        from Восхождения
+    ) as sub_1
+    group by sub_1.season_end
+) as sub_climbing-- посчитатли количество восхождений
+inner join
+(
+    select sub_2.season_end as season_2, count(sub_2.climber) as count_climbers from
+    (
+        select 
+        Альпинисты.id_Альпиниста as climber,
+        CASE 
+            WHEN date_part('month', Дата_завершения) = 12 or date_part('month', Дата_завершения) < 3  THEN 'winter'
+            WHEN date_part('month', Дата_завершения) > 2 and date_part('month', Дата_завершения) < 6 THEN 'spring'
+            WHEN date_part('month', Дата_завершения) > 5 and date_part('month', Дата_завершения) < 9 THEN 'summer'
+            ELSE 'autumn'
+        END as season_end
+
+        from Восхождения
+        inner join Альпинист_Восхождение on Альпинист_Восхождение.id_Восхождения = Восхождения.id_Восхождения
+        inner join Альпинисты on Альпинисты.id_Альпиниста = Альпинист_Восхождение.id_Альпиниста
+    ) as sub_2
+    group by sub_2.season_end
+) as sub_climbers on sub_climbers.season_2 ILIKE sub_climbing.season_1
+; -- посчитатли количество Альпинистов
+
+--общий запрос
