@@ -409,3 +409,31 @@ inner join
     from Вершины
 ) as sub_peaks on sub_peaks.id_Вершины = sub.peaks
 ;--общий запрос
+
+-- 3.5. Вывести вершины, высота которых меньше средней по региону. В выборке должны присутствовать только следующие атрибуты: регион,
+-- название вершины, высота, средняя высота по региону
+
+--регион - средняя высота по региону
+select
+sub.name_peak, sub.height_peak, sub_avg_height.avg_height as avg_height_region
+from
+(
+    select Вершины.Регион as region, avg(Вершины.Высота) as avg_height
+    from Вершины
+    group by Вершины.Регион
+) as sub_avg_height
+inner join
+(
+    select Вершины.Регион as region, Вершины.Высота as height_peak, Вершины.id_Вершины as peak
+    , Вершины.Название as name_peak
+    from Вершины
+) as sub on sub.region ILIKE sub_avg_height.region
+;
+
+
+-- select Вершины.Регион
+-- from Вершины
+-- Восхождения Альпинист_Восхождение Альпинисты
+-- inner join Восхождения on Восхождения.id_Вершины = Вершины.id_Вершины
+-- inner join Альпинист_Восхождение on Альпинист_Восхождение.id_Восхождения = Восхождения.id_Восхождения
+-- inner join Альпинисты on Альпинисты.id_Альпиниста = Альпинист_Восхождение.id_Альпиниста
