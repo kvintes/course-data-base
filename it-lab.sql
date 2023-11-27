@@ -358,3 +358,54 @@ inner join
 ; -- посчитатли количество Альпинистов
 
 --общий запрос
+
+-- 3.4. Для каждой вершины найти общее число восхождений, средний возраст альпинистов, участвовавших в восхождении на эту вершину, средний
+-- размер группы. Исключить из выборки горы, расположенные в Англии. В выборке должны присутствовать только следующие атрибуты: название
+-- вершины, общее число восхождений, средний возраст альпинистов, участвовавших в восхождении на эту вершину, средний размер группы.
+
+
+--общий запрос
+select
+sub_peaks.name_pick, sub.count_climbings, sub.avg_age, sub.avg_people_in_team
+from
+(
+    select sub_climbings.peaks, sub_climbings.count_climbings, sub_climbers.avg_age, sub_avg_people_in_teams.avg_people_in_team
+    from
+    (
+        select Вершины.id_Вершины as peaks, count(Восхождения.id_Восхождения) as count_climbings
+        from Вершины
+        inner join Восхождения on Восхождения.id_Вершины = Вершины.id_Вершины
+        where NOT Вершины.Страна ILIKE 'Англия'--Исключить из выборки горы, расположенные в Англии
+        group by Вершины.id_Вершины 
+    ) as sub_climbings
+    inner join
+    (
+        select Вершины.id_Вершины as peaks, AVG(age(current_timestamp, Альпинисты.Дата_рождения)) as avg_age
+        from Вершины
+        inner join Восхождения on Восхождения.id_Вершины = Вершины.id_Вершины
+        inner join Альпинист_Восхождение on Альпинист_Восхождение.id_Восхождения = Восхождения.id_Восхождения
+        inner join Альпинисты on Альпинисты.id_Альпиниста = Альпинист_Восхождение.id_Альпиниста
+
+        where NOT Вершины.Страна ILIKE 'Англия'--Исключить из выборки горы, расположенные в Англии
+        group by Вершины.id_Вершины
+    ) as sub_climbers on sub_climbers.peaks = sub_climbings.peaks --средний возраст альпинистов, участвовавших в восхождении на эту вершину
+    inner join
+    (
+        select id_Вершины as peaks, avg(sub_1.count_climbings) as avg_people_in_team
+        from Вершины
+        inner join
+        (
+            select Восхождения.id_Восхождения, count(Альпинист_Восхождение.id_Восхождения) as count_climbings
+            from Восхождения
+            inner join Альпинист_Восхождение on Альпинист_Восхождение.id_Восхождения = Восхождения.id_Восхождения
+            group by Восхождения.id_Восхождения
+        ) as sub_1 on sub_1.id_Восхождения = Вершины.id_Вершины
+        group by id_Вершины --средний размер группы
+    ) as sub_avg_people_in_teams on sub_avg_people_in_teams.peaks = sub_climbings.peaks
+) as sub
+inner join
+(
+    select Название as name_pick, id_Вершины
+    from Вершины
+) as sub_peaks on sub_peaks.id_Вершины = sub.peaks
+;--общий запрос
