@@ -318,10 +318,10 @@ order by Альпинисты.ФИО, Дата_завершения - Дата_�
 -- продолжительность восхождения в днях.
 
 -- общий ЗАПРОС
-select sub_climbing.season_1, sub_climbing.count_climbing, sub_climbers.count_climbers
+select sub_climbing.season_1, sub_climbing.count_climbing, sub_climbers.count_climbers, sub_climbing.avg_days_climbing
 from
 (
-    select sub_1.season_end as season_1, count(sub_1.id_Восхождения) as count_climbing from
+    select sub_1.season_end as season_1, count(sub_1.id_Восхождения) as count_climbing, avg(sub_1.climbing_days) as avg_days_climbing from
     (
         select 
         id_Восхождения, 
@@ -330,8 +330,8 @@ from
             WHEN date_part('month', Дата_завершения) > 2 and date_part('month', Дата_завершения) < 6 THEN 'spring'
             WHEN date_part('month', Дата_завершения) > 5 and date_part('month', Дата_завершения) < 9 THEN 'summer'
             ELSE 'autumn'
-        END as season_end
-
+        END as season_end,
+        date_part('day', Дата_завершения - Дата_начала) as climbing_days
         from Восхождения
     ) as sub_1
     group by sub_1.season_end
