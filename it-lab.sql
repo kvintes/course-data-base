@@ -519,6 +519,50 @@ UPDATE Восхождения SET Дней_восхождения =
 )
 ;
 select * from Восхождения; -- проверочный запрос
+
+-- 4.2. Удалить сведенья об альпинистах, не совершивших ни одного восхождения.
+
+DELETE FROM Альпинист_Восхождение
+WHERE id_Альпиниста IN 
+(
+    SELECT sub_help.id 
+    FROM 
+    (
+        select
+        sub.id as id, sub.count_climbings as count
+        from 
+        (
+            select Альпинисты.id_Альпиниста as id, count(Альпинист_Восхождение.id_Восхождения) as count_climbings
+            from Альпинисты
+            inner join Альпинист_Восхождение on Альпинист_Восхождение.id_Альпиниста = Альпинисты.id_Альпиниста
+            group by Альпинисты.id_Альпиниста
+        ) as sub
+    ) as sub_help 
+    WHERE sub_help.count = 0
+);
+
+
+--4.3. Выделить справочник регионов в отдельную таблицу.
+
+-- 1шаг создаем новую таблицу regions
+create table if not exists it.regions
+(
+    id serial not null
+    , name_region text not null
+    , constraint PK_regions primary key (id)
+);
+-- 2шаг заполняем новую таблицу regions
+INSERT INTO regions
+  ( name_region )
+(
+    select Регион
+    from Вершины
+); -- про модификацию таблиц не сказано, новая таблица создана
+
+
+-- 5.1. Оформить запросы 3.5 - 3.6 в виде представления.
+
+
 -- select Вершины.Регион
 -- from Вершины
 -- Восхождения Альпинист_Восхождение Альпинисты
