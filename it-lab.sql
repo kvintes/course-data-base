@@ -561,6 +561,76 @@ INSERT INTO regions
 
 
 -- 5.1. Оформить запросы 3.5 - 3.6 в виде представления.
+-- 3.5. Вывести вершины, высота которых меньше средней по региону. В выборке должны присутствовать только следующие атрибуты: регион,
+-- название вершины, высота, средняя высота по региону
+CREATE OR REPLACE VIEW view_3_5(name_peak, height_peak, avg_height_region) as
+(
+    select
+    sub.name_peak, sub.height_peak, sub_avg_height.avg_height as avg_height_region
+    from
+    (
+        select Вершины.Регион as region, avg(Вершины.Высота) as avg_height
+        from Вершины    
+        group by Вершины.Регион
+    ) as sub_avg_height
+    inner join
+    (
+        select Вершины.Регион as region, Вершины.Высота as height_peak, Вершины.id_Вершины as peak
+        , Вершины.Название as name_peak
+        from Вершины
+    ) as sub on sub.region ILIKE sub_avg_height.region
+);
+
+-- 5.1. Оформить запросы 3.5 - 3.6 в виде представления.
+-- 3.6. Для каждого альпиниста вывести число вершин, на которые кроме него никто не совершал восхождения. В выборке должны присутствовать
+-- только следующие атрибуты: Имя альпиниста, название вершины, количество восхождений на эту вершину. 
+CREATE OR REPLACE VIEW view_3_6(name_peak, name_climber, count_climbings) as
+(
+    select 
+    sub_name_peaks.name_peak, sub_name_climbers.name_climber, sub_help.count_climbings
+    from
+    (
+        select Вершины.id_Вершины as id_peak, count(Альпинист_Восхождение.id_Восхождения) as count_climbings
+        from Альпинисты
+        inner join Альпинист_Восхождение on Альпинист_Восхождение.id_Альпиниста = Альпинисты.id_Альпиниста
+        inner join Восхождения on Восхождения.id_Восхождения = Альпинист_Восхождение.id_Восхождения
+        inner join Вершины on Вершины.id_Вершины = Восхождения.id_Вершины
+        group by Вершины.id_Вершины
+    ) as sub
+    inner join
+    (
+        select Вершины.id_Вершины as id_peak
+        , Альпинисты.id_Альпиниста, count(Альпинист_Восхождение.id_Восхождения) as count_climber_climbings
+        from Альпинисты
+        inner join Альпинист_Восхождение on Альпинист_Восхождение.id_Альпиниста = Альпинисты.id_Альпиниста
+        inner join Восхождения on Восхождения.id_Восхождения = Альпинист_Восхождение.id_Восхождения
+        inner join Вершины on Вершины.id_Вершины = Восхождения.id_Вершины
+        group by Вершины.id_Вершины, Альпинисты.id_Альпиниста
+    )  as sub_peak_climber_countclimbings on sub_peak_climber_countclimbings.id_peak = sub.id_peak
+    inner join
+    (
+        select Вершины.id_Вершины as id_peak, Альпинисты.id_Альпиниста as id_climber
+        , count(Альпинист_Восхождение.id_Восхождения) as count_climbings
+        from Альпинисты
+        inner join Альпинист_Восхождение on Альпинист_Восхождение.id_Альпиниста = Альпинисты.id_Альпиниста
+        inner join Восхождения on Восхождения.id_Восхождения = Альпинист_Восхождение.id_Восхождения
+        inner join Вершины on Вершины.id_Вершины = Восхождения.id_Вершины
+        group by Вершины.id_Вершины, Альпинисты.id_Альпиниста
+    ) as sub_help on sub_help.id_peak = sub.id_peak
+    inner join
+    (
+        select Вершины.id_Вершины as id_peak, Вершины.Название as name_peak
+        from Вершины
+    ) as sub_name_peaks on sub_name_peaks.id_peak = sub.id_peak
+    inner join
+    (
+        select Альпинисты.id_Альпиниста as id_climber, Альпинисты.ФИО as name_climber
+        from Альпинисты
+    ) as sub_name_climbers on sub_name_climbers.id_climber = sub_help.id_climber
+    where sub.count_climbings = sub_peak_climber_countclimbings.count_climber_climbings
+);
+-- 5.2. Создать представление, содержащие незавершённые восхождения, со следующими атрибутами: ID_Альпиниста, ФИО, телефон, дата начала
+-- восхождения (без времени), длительность восхождения в днях (число, прошедших с начала дней), название вершины, высота, страна.
 
 
 -- select Вершины.Регион
