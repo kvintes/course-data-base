@@ -31,8 +31,32 @@ $$ LANGUAGE plpgsql;
 -- Запрос должен содержать следующие атрибуты: номер месяца, фамилия курьера, количество доставленных заказов, 
 -- рассчитанное при помощи функции,  количество доставленных заказов,  рассчитанное без использования функции, 
 -- результат сравнения  полученных значений.
-select *
+select date_part('month', current_timestamp)-2 as ex_month
+	, pd_employees.name, count(*) as count_orders
 from pd_employees
 inner join pd_orders on pd_orders.emp_id = pd_employees.id
+where date_part('month', current_timestamp)-2 = date_part('month', pd_orders.exec_date)
+group by pd_employees.name, date_part('month', current_timestamp)-2
+;
+
+select
+    sub_default.ex_month, sub_default.name_emp, sub_func.count_orders as func_count_orders
+    , sub_default.count_orders as default_count_orders
+    , sub_func.count_orders - sub_default.count_orders as difference_func_default
+from
+(
+    select date_part('month', current_timestamp)-2 as ex_month
+        , pd_employees.name as name_emp, count(*) as count_orders
+        , pd_employees.id as id
+    from pd_employees
+    inner join pd_orders on pd_orders.emp_id = pd_employees.id
+    where date_part('month', current_timestamp)-2 = date_part('month', pd_orders.exec_date)
+    group by pd_employees.name, date_part('month', current_timestamp)-2, pd_employees.id
+) as sub_default
+inner join
+(
+    select pd_employees.id as id, f_delivered_orders(pd_employees.id, '2023-09-16'::date) as count_orders
+    from pd_employees
+) as sub_func on sub_func.id = sub_default.id
 ;
 
