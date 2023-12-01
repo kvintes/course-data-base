@@ -1,11 +1,11 @@
 drop view if exists view_3_5;
 drop view if exists view_3_6;
 drop view if exists view_5_2;
-drop table Альпинист_Восхождение;
-drop table Альпинисты;
+drop table if exists Альпинист_Восхождение;
+drop table if exists Альпинисты;
 
-drop table Восхождения;
-drop table Вершины;
+drop table if exists Восхождения;
+drop table if exists Вершины;
 
 
 alter table if exists Альпинист_Восхождение drop if exists fk_Альпинист_Восние__Альпинисты;
@@ -83,7 +83,7 @@ create table if not EXISTS it_2.Восхождения
 (
     ID_Восхождения integer not null
     , Дата_начала timestamp not null
-    , Дата_завершения timestamp not null
+    , Дата_завершения timestamp
     , ID_Вершины integer not null
     , constraint PK_Восхождения primary key (ID_Восхождения)
 )
@@ -441,8 +441,7 @@ inner join
 
 -- 3.5. Вывести вершины, высота которых меньше средней по региону. В выборке должны присутствовать только следующие атрибуты: регион,
 -- название вершины, высота, средняя высота по региону
-
---регион - средняя высота по региону
+--1. Неверно реализован запрос 3.5: нужно вывести только те вершины, высота которых меньше средней по региону.
 select
 sub.name_peak, sub.height_peak, sub_avg_height.avg_height as avg_height_region
 from
@@ -457,7 +456,7 @@ inner join
     , Вершины.Название as name_peak
     from Вершины
 ) as sub on sub.region ILIKE sub_avg_height.region
-where sub.height_peak < sub_avg_height.avg_height
+where sub.height_peak < sub_avg_height.avg_height -- ДОБАВЛЕНО высота которых меньше средней по региону.
 ;
 
 -- 3.6. Для каждого альпиниста вывести число вершин, на которые кроме него никто не совершал восхождения. В выборке должны присутствовать
@@ -510,10 +509,14 @@ where sub.count_climbings = sub_peak_climber_countclimbings.count_climber_climbi
 ;--общий запрос
 
 
+--2. В разделе №4 нужно добавить вывод таблиц до и после изменения схемы БД.
+
 --      4 задание       --
 -- 4.1. В таблицу “Восхождения” добавить атрибут: “Итоговая продолжительность восхождения”. Для атрибута допустимо значение null. Заполнить
 -- новое поле значениями для все завершённых восхождений. Продолжительность рассчитывается в днях.
 
+
+select * from Восхождения; -- ДОБАВЛЕНО проверочный запрос до изменения схемы бд
 --1 шаг добавляем новуб колонку в таблицу Восхождения
 ALTER TABLE Восхождения add COLUMN Дней_восхождения numeric;
 
@@ -536,6 +539,8 @@ select * from Восхождения; -- проверочный запрос
 
 -- 4.2. Удалить сведенья об альпинистах, не совершивших ни одного восхождения.
 
+select * from Альпинист_Восхождение; -- ДОБАВЛЕНО проверочный запрос до изменения схемы бд
+
 DELETE FROM Альпинист_Восхождение
 WHERE id_Альпиниста IN 
 (
@@ -555,9 +560,10 @@ WHERE id_Альпиниста IN
     WHERE sub_help.count = 0
 );
 
-
+select * from Альпинист_Восхождение; -- ДОБАВЛЕНО проверочный запрос после изменения схемы бд
 --4.3. Выделить справочник регионов в отдельную таблицу.
-
+drop table if exists regions;
+select * from Вершины; -- ДОБАВЛЕНО проверочный запрос после изменения схемы бд
 -- 1шаг создаем новую таблицу regions
 create table if not exists it_2.regions
 (
@@ -566,13 +572,33 @@ create table if not exists it_2.regions
     , constraint PK_regions primary key (id)
 );
 -- 2шаг заполняем новую таблицу regions
-INSERT INTO regions
+INSERT INTO it_2.regions
   ( name_region )
 (
     select Регион
     from Вершины
+    group by Регион
 ); -- про модификацию таблиц не сказано, новая таблица создана
 
+--3 п.4.3: после выноса регионов в справочник нужно убрать их из таблицы вершин и заменить ссылкой на id региона, чтобы убрать дублирование данных.
+
+-- ДОБАВЛЕНО 3 шаг добавляем колонку region_id в таблицу Вершины
+ALTER TABLE Вершины ADD COLUMN region_id integer;
+
+-- ДОБАВЛЕНО 4 шаг заполняем колонку region_id в таблице Вершины данными id из regions
+UPDATE Вершины SET region_id = 
+(
+    SELECT id FROM regions
+    WHERE Вершины.Регион ILIKE regions.name_region
+)
+;
+select * from Вершины;
+
+-- ДОБАВЛЕНО 5 шаг удаление Регион из таблицы Вершины 
+ALTER TABLE Вершины DROP COLUMN Регион;
+
+SELECT * FROM Вершины; -- ДОБАВЛЕНО проверочный запрос после изменения схемы бд
+SELECT * FROM regions; -- ДОБАВЛЕНО проверочный запрос после изменения схемы бд
 
 -- 5.1. Оформить запросы 3.5 - 3.6 в виде представления.
 -- 3.5. Вывести вершины, высота которых меньше средней по региону. В выборке должны присутствовать только следующие атрибуты: регион,
@@ -583,16 +609,16 @@ CREATE OR REPLACE VIEW view_3_5(name_peak, height_peak, avg_height_region) as
     sub.name_peak, sub.height_peak, sub_avg_height.avg_height as avg_height_region
     from
     (
-        select Вершины.Регион as region, avg(Вершины.Высота) as avg_height
+        select Вершины.region_id as region, avg(Вершины.Высота) as avg_height
         from Вершины    
-        group by Вершины.Регион
+        group by Вершины.region_id
     ) as sub_avg_height
     inner join
     (
-        select Вершины.Регион as region, Вершины.Высота as height_peak, Вершины.id_Вершины as peak
+        select Вершины.region_id as region, Вершины.Высота as height_peak, Вершины.id_Вершины as peak
         , Вершины.Название as name_peak
         from Вершины
-    ) as sub on sub.region ILIKE sub_avg_height.region
+    ) as sub on sub.region = sub_avg_height.region
 );
 
 -- 5.1. Оформить запросы 3.5 - 3.6 в виде представления.
@@ -645,6 +671,19 @@ CREATE OR REPLACE VIEW view_3_6(name_peak, name_climber, count_climbings) as
 );
 -- 5.2. Создать представление, содержащие незавершённые восхождения, со следующими атрибутами: ID_Альпиниста, ФИО, телефон, дата начала
 -- восхождения (без времени), длительность восхождения в днях (число, прошедших с начала дней), название вершины, высота, страна.
+INSERT INTO Альпинисты (id_Альпиниста, ФИО, Адрес, Телефон, Дата_рождения) values (1664, 'Сергеев Сергей Сергеевич', 'пр. Победы 9', '+7-333-33-36', '1981-07-07');
+INSERT INTO Альпинисты (id_Альпиниста, ФИО, Адрес, Телефон, Дата_рождения) values (1666, 'Александров Александр Александрович', 'ул. Кирова 14', '+7-444-44-47', '1979-04-27');
+
+
+INSERT INTO Вершины (id_Вершины, Название, Высота, Страна, region_id) values (2444, 'Балиал', 4007, 'Россия', 1);
+INSERT INTO Вершины (id_Вершины, Название, Высота, Страна, region_id) values (2446, 'Даги', 4020, 'Россия', 2);
+
+INSERT INTO Восхождения (id_Восхождения, Дата_начала, Дата_завершения, ID_Вершины) values (9444, '2023-10-30', NULL, 2444);
+INSERT INTO Восхождения (id_Восхождения, Дата_начала, Дата_завершения, ID_Вершины) values (9446, '2023-10-30', NULL, 2446);
+
+INSERT INTO Альпинист_Восхождение (ID_Альпиниста, id_Восхождения) values (1664, 9444);
+INSERT INTO Альпинист_Восхождение (ID_Альпиниста, id_Восхождения) values (1666, 9446);
+
 CREATE OR REPLACE VIEW view_5_2(ID_Альпиниста, ФИО, Телефон, Начало_восхождения, Дней_прошло, Вершина, Высота, Страна) as
 (
     select 
@@ -659,4 +698,4 @@ CREATE OR REPLACE VIEW view_5_2(ID_Альпиниста, ФИО, Телефон,
     where Восхождения.Дата_завершения is null
 )
 ;
-
+select * from view_5_2;
