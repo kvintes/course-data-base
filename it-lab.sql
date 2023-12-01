@@ -457,6 +457,7 @@ inner join
     , Вершины.Название as name_peak
     from Вершины
 ) as sub on sub.region ILIKE sub_avg_height.region
+where sub.height_peak < sub_avg_height.avg_height
 ;
 
 -- 3.6. Для каждого альпиниста вывести число вершин, на которые кроме него никто не совершал восхождения. В выборке должны присутствовать
