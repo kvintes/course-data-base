@@ -31,14 +31,8 @@ $$ LANGUAGE plpgsql;
 -- Запрос должен содержать следующие атрибуты: номер месяца, фамилия курьера, количество доставленных заказов, 
 -- рассчитанное при помощи функции,  количество доставленных заказов,  рассчитанное без использования функции, 
 -- результат сравнения  полученных значений.
-select date_part('month', current_timestamp)-3 as ex_month
-	, pd_employees.name, count(*) as count_orders
-from pd_employees
-inner join pd_orders on pd_orders.emp_id = pd_employees.id
-where date_part('month', current_timestamp)-3 = date_part('month', pd_orders.exec_date)
-group by pd_employees.name, date_part('month', current_timestamp)-3
-;
 
+-- 1 запрос к 1й функции
 select
     sub_default.ex_month, sub_default.name_emp, sub_func.count_orders as func_count_orders
     , sub_default.count_orders as default_count_orders
@@ -66,7 +60,7 @@ inner join
 -- Если в течение месяца не было выполнено ни одного заказа, то итоги по этому месяцу не должны попасть в итоговую выборку.  
 -- Запрос должен содержать следующие атрибуты:  ФИО сотрудника, количество выполненных заказов,  место в рейтинге, номер месяца. 
 -- Сортировка по месяцу,  номеру в рейтинге потом по фамилии.
-CREATE OR REPLACE FUNCTION f_nameEmployee_byId(
+CREATE OR REPLACE FUNCTION f_nameEmployee_byId( -- вспомогательная функция
     employee_id INT
 ) RETURNS text AS
 $$
@@ -83,68 +77,56 @@ BEGIN
     RETURN name;
 END;    
 $$ LANGUAGE plpgsql;
-
-SELECT 
-	sub.employee_id, sub.month, sub.order_rank
-	, f_nameEmployee_byId(sub.employee_id) as name_employee
-	, f_delivered_orders(sub.employee_id, '2023-09-16'::date) as count_orders
-from
-(
-	select
-	pd_employees.id AS employee_id,
-    DATE_part('month', '2023-09-16'::date) AS month,
-    ROW_NUMBER() OVER(PARTITION BY DATE_TRUNC('month', '2023-09-16'::date) 
-	ORDER BY f_delivered_orders(pd_employees.id, '2023-09-16'::date) DESC) AS order_rank
-	FROM pd_employees
-) as sub
-where sub.order_rank <=3
-order by sub.month, sub.order_rank, f_nameEmployee_byId(sub.employee_id)
-;
--- в для летних месяцев
-
-SELECT 
-	sub.employee_id, sub.month, sub.order_rank
-	, f_nameEmployee_byId(sub.employee_id) as name_employee
-	, f_delivered_orders(sub.employee_id, '2023-09-16'::date) as count_orders
-from
-(
-	pd_employees.id AS employee_id,
-    DATE_part('month', pd_orders.order_date::date) AS month,
-    ROW_NUMBER() OVER(PARTITION BY DATE_TRUNC('month', pd_orders.order_date::date) 
-	ORDER BY f_delivered_orders(pd_employees.id, pd_orders.order_date::date) DESC) AS order_rank
-	FROM pd_employees
-	inner join pd_orders on pd_orders.emp_id = pd_employees.id
-) as sub
-where sub.order_rank <=3
-order by sub.month, sub.order_rank, f_nameEmployee_byId(sub.employee_id)
-;
-
-
-
+-- для осенних месяцев 2 запрос к 1й функции
 select
-    sub.employee_id
-    , ROW_NUMBER() OVER(PARTITION BY DATE_TRUNC('month', pd_orders.order_date::date) 
-    	ORDER BY sub.count_orders desc AS order_rank
-from 
+    sub.id, sub.ord_month, sub.count_ord_month, sub.order_rank, f_nameEmployee_byId(sub.id) as name_emp
+from
 (
-    select
-    pd_employees.id AS employee_id,
-    f_delivered_orders(pd_employees.id, pd_orders.order_date::date) as count_orders
-    
-	FROM pd_employees
-	inner join pd_orders on pd_orders.emp_id = pd_employees.id
-	where 
-	    DATE_part('month', pd_orders.order_date::date)::integer < 9 
-	    and DATE_part('month', pd_orders.order_date::date)::integer > 5
-    group by 
-        pd_employees.id,
-        f_delivered_orders(pd_employees.id, pd_orders.order_date::date)
-    
+    select 
+	pd_employees.id as id
+	, sub_months.month_summer::int as ord_month
+	, f_delivered_orders(pd_employees.id, make_date(2023, sub_months.month_summer::int, 1)) as count_ord_month
+	,  ROW_NUMBER() OVER(PARTITION BY sub_months.month_summer::int 
+	ORDER BY 
+	f_delivered_orders(pd_employees.id, make_date(2023, sub_months.month_summer::int, 1)) DESC) AS order_rank
+    from pd_employees
+    inner join
+    (
+    	select extract(month from pd_orders.order_date) as month_summer
+    	from pd_orders
+    	WHERE pd_orders.order_date BETWEEN '2023-09-01' AND '2023-11-30'
+    	group by extract(month from pd_orders.order_date)
+    ) as sub_months on true
 ) as sub
-	
+where sub.order_rank <=3 and  sub.count_ord_month > 0
+order by sub.ord_month, sub.order_rank, f_nameEmployee_byId(sub.id)
+;
+-- для летних месяцев 3 запрос к 1й функции
+select
+    sub.id, sub.ord_month, sub.count_ord_month, sub.order_rank, f_nameEmployee_byId(sub.id) as name_emp
+from
+(
+    select 
+	pd_employees.id as id
+	, sub_months.month_summer::int as ord_month
+	, f_delivered_orders(pd_employees.id, make_date(2023, sub_months.month_summer::int, 1)) as count_ord_month
+	,  ROW_NUMBER() OVER(PARTITION BY sub_months.month_summer::int 
+	ORDER BY 
+	f_delivered_orders(pd_employees.id, make_date(2023, sub_months.month_summer::int, 1)) DESC) AS order_rank
+    from pd_employees
+    inner join
+    (
+    	select extract(month from pd_orders.order_date) as month_summer
+    	from pd_orders
+    	WHERE pd_orders.order_date BETWEEN '2023-06-01' AND '2023-08-31'
+    	group by extract(month from pd_orders.order_date)
+    ) as sub_months on true
+) as sub
+where sub.order_rank <=3
+order by sub.ord_month, sub.order_rank, f_nameEmployee_byId(sub.id)
+;
 
-ROW_NUMBER() OVER(PARTITION BY DATE_TRUNC('month', pd_orders.order_date::date) 
-	ORDER BY f_delivered_orders(pd_employees.id, pd_orders.order_date::date) DESC) AS order_rank
+
 2. Написать функцию,  формирующую скидку по итогам последних N дней. Количество  дней считается от введенной даты, если дата не указана то от текущей.  Условия: скидка 10% на самую часто заказываемую пиццу; скидка 5% на пиццу, которую заказывали на самую большую сумму. Скидки суммируются.
 
 Написать запросы с использованием написанной функции:  
