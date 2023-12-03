@@ -164,6 +164,12 @@ $$ LANGUAGE plpgsql;
 -- inner join pd_products on pd_products.id = pd_order_details.product_id
 -- where pd_products.id = 30 and pd_orders.order_date::date <= '2023-10-31'::date
 -- ;
+select * from pd_categories;
+select 
+	max(f_count_orders_product(pd_products.id, 10000, '2023-10-31'::date)) as max_count_orders
+from pd_products
+where pd_products.category_id = 3
+;
 --------вспомогательные запросы-------------
 
 CREATE OR REPLACE FUNCTION f_new_price_by_disconts(
