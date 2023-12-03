@@ -127,15 +127,95 @@ order by sub.ord_month, sub.order_rank, f_nameEmployee_byId(sub.id)
 ;
 
 
-2. Написать функцию,  формирующую скидку по итогам последних N дней. Количество  дней считается от введенной даты, если дата не указана то от текущей.  Условия: скидка 10% на самую часто заказываемую пиццу; скидка 5% на пиццу, которую заказывали на самую большую сумму. Скидки суммируются.
+-- 2. Написать функцию,  формирующую скидку по итогам последних N дней. 
+-- Количество  дней считается от введенной даты, если дата не указана то от текущей.  
+-- Условия: скидка 10% на самую часто заказываемую пиццу; скидка 5% на пиццу, которую заказывали на самую большую сумму. 
+-- Скидки суммируются.
 
-Написать запросы с использованием написанной функции:  
-а. Скидка на все пиццы по итогам последних 20 дней.
-б. Пицца с максимальной скидкой за каждый месяц 2023 года.
+-- функция принимает product_id count_days desired_date и возвращает количество заказов у товара по product_id за период
+--------вспомогательные функции-------------
+--drop function f_count_orders_product;
+CREATE OR REPLACE FUNCTION f_count_orders_product(
+    f_product_id INT
+    , count_days INT
+    , desired_date DATE default now()::date
+) RETURNS INTEGER AS
+$$
+DECLARE
+    order_count INT; 
+BEGIN
+    order_count := 0;
+    select count(*) into order_count from (   
+        select * from pd_orders
+        inner join pd_order_details on pd_order_details.order_id = pd_orders.id
+        inner join pd_products on pd_products.id = pd_order_details.product_id
+        where 
+		pd_products.id = f_product_id 
+		and pd_orders.order_date::date <= desired_date
+		and pd_orders.order_date::date >= desired_date::date - interval '1 day' * count_days
+    )as sub;
+    RETURN order_count;
+END;    
+$$ LANGUAGE plpgsql;
+--------вспомогательные функции-------------
+--------вспомогательные запросы-------------
+-- select count(*) from pd_orders
+-- inner join pd_order_details on pd_order_details.order_id = pd_orders.id
+-- inner join pd_products on pd_products.id = pd_order_details.product_id
+-- where pd_products.id = 30 and pd_orders.order_date::date <= '2023-10-31'::date
+-- ;
+--------вспомогательные запросы-------------
+
+CREATE OR REPLACE FUNCTION f_new_price_by_disconts(
+    product_id INT
+    , count_days INT
+    , desired_date DATE default now()::date
+) RETURNS INTEGER AS
+$$
+DECLARE
+    orders_cursor CURSOR IS SELECT * FROM pd_orders WHERE emp_id = employee_id;
+    order_count INT; 
+BEGIN
+    order_count := 0;
+  	FOR row IN orders_cursor LOOP
+        IF()
+	        THEN
+                
+	        END IF;
+    END LOOP;
+    RETURN order_count;
+END;    
+$$ LANGUAGE plpgsql;
+TODO
+-- Написать запросы с использованием написанной функции:  
+-- а. Скидка на все пиццы по итогам последних 20 дней.
+TODO
+-- б. Пицца с максимальной скидкой за каждый месяц 2023 года.
+TODO
 
  
 
-3. Написать функцию, возвращающую число доставленных и оплаченных  заказов под руководством сотрудника по его номеру за месяц. Все аргументы функции должны принимать определенное значение.
+3. Написать функцию, возвращающую число доставленных и оплаченных заказов под руководством сотрудника по его номеру за месяц. 
+Все аргументы функции должны принимать определенное значение.
+CREATE OR REPLACE FUNCTION f_delivered_orders(
+    employee_id INT,
+    month DATE
+) RETURNS INTEGER AS
+$$
+DECLARE
+    orders_cursor CURSOR IS SELECT * FROM pd_orders WHERE emp_id = employee_id;
+    order_count INT; 
+BEGIN
+    order_count := 0;
+  	FOR row IN orders_cursor LOOP
+        IF(row.order_state ilike 'end' and row.paid_up and date_trunc('month', month) = date_trunc('month', row.delivery_date))
+	        THEN
+                order_count := order_count + 1;
+	        END IF;
+    END LOOP;
+    RETURN order_count;
+END;    
+$$ LANGUAGE plpgsql;
 
 Написать запросы с использованием написанной функции:  
 а. Количество доставок для каждого курьера за предыдущий месяц, для руководителей групп в отдельном атрибуте указать количество доставок в их группах.
