@@ -1,4 +1,4 @@
-
+--drop function f_count_orders_product;
 -- Для каждой процедуры не менее 3-х примеров работы с различными значениями аргументов.
 -- Комментарии для каждого сценария описывающие суть примера и результат.
 
@@ -60,6 +60,8 @@ inner join
 -- Если в течение месяца не было выполнено ни одного заказа, то итоги по этому месяцу не должны попасть в итоговую выборку.  
 -- Запрос должен содержать следующие атрибуты:  ФИО сотрудника, количество выполненных заказов,  место в рейтинге, номер месяца. 
 -- Сортировка по месяцу,  номеру в рейтинге потом по фамилии.
+--------вспомогательные функции-------------
+--1 вспомогательная функция
 CREATE OR REPLACE FUNCTION f_nameEmployee_byId( -- вспомогательная функция
     employee_id INT
 ) RETURNS text AS
@@ -77,6 +79,7 @@ BEGIN
     RETURN name;
 END;    
 $$ LANGUAGE plpgsql;
+--------вспомогательные функции-------------
 -- для осенних месяцев 2 запрос к 1й функции
 select
     sub.id, sub.ord_month, sub.count_ord_month, sub.order_rank, f_nameEmployee_byId(sub.id) as name_emp
@@ -126,7 +129,6 @@ where sub.order_rank <=3
 order by sub.ord_month, sub.order_rank, f_nameEmployee_byId(sub.id)
 ;
 
-
 -- 2. Написать функцию,  формирующую скидку по итогам последних N дней. 
 -- Количество  дней считается от введенной даты, если дата не указана то от текущей.  
 -- Условия: скидка 10% на самую часто заказываемую пиццу; скидка 5% на пиццу, которую заказывали на самую большую сумму. 
@@ -134,8 +136,9 @@ order by sub.ord_month, sub.order_rank, f_nameEmployee_byId(sub.id)
 
 -- функция принимает product_id count_days desired_date и возвращает количество заказов у товара по product_id за период
 --------вспомогательные функции-------------
+--1 вспомогательная функция
 --drop function f_count_orders_product;
-CREATE OR REPLACE FUNCTION f_count_orders_product(
+CREATE OR REPLACE FUNCTION f_count_orders_product( -- считает количество заказов продукта за промежуток
     f_product_id INT
     , count_days INT
     , desired_date DATE default now()::date
@@ -157,6 +160,31 @@ BEGIN
     RETURN order_count;
 END;    
 $$ LANGUAGE plpgsql;
+--2 вспомогательная функция
+--drop function f_count_orders_product;
+CREATE OR REPLACE FUNCTION f_count_costs_product( -- считает стоиимость продукта за промежуток
+    f_product_id INT
+    , count_days INT
+    , desired_date DATE default now()::date
+) RETURNS money AS
+$$
+DECLARE
+    costs_count money; 
+BEGIN
+    costs_count := 0;
+    select sub.product_cost into costs_count from (   
+        select sum(pd_order_details.quantity * pd_products.price) as product_cost from pd_orders
+        inner join pd_order_details on pd_order_details.order_id = pd_orders.id
+        inner join pd_products on pd_products.id = pd_order_details.product_id
+        where 
+		pd_products.id = f_product_id
+		and pd_orders.order_date::date <= desired_date::date
+		and pd_orders.order_date::date >= desired_date::date - interval '1 day' * count_days
+		group by pd_products.id
+    )as sub;
+    RETURN costs_count;
+END;    
+$$ LANGUAGE plpgsql;
 --------вспомогательные функции-------------
 --------вспомогательные запросы-------------
 -- select count(*) from pd_orders
@@ -164,31 +192,38 @@ $$ LANGUAGE plpgsql;
 -- inner join pd_products on pd_products.id = pd_order_details.product_id
 -- where pd_products.id = 30 and pd_orders.order_date::date <= '2023-10-31'::date
 -- ;
-select * from pd_categories;
-select 
-	max(f_count_orders_product(pd_products.id, 10000, '2023-10-31'::date)) as max_count_orders
-from pd_products
-where pd_products.category_id = 3
-;
+-- select * from pd_categories;
+-- select 
+-- 	max(f_count_orders_product(pd_products.id, 10000, '2023-10-31'::date)) as max_count_orders
+-- from pd_products
+-- where pd_products.category_id = 3
+-- ;
 --------вспомогательные запросы-------------
-
+--------основные запросы--------
+-- Написать функцию,  формирующую скидку по итогам последних N дней. 
+-- Количество  дней считается от введенной даты, если дата не указана то от текущей.  
+-- Условия: скидка 10% на самую часто заказываемую пиццу; скидка 5% на пиццу, которую заказывали на самую большую сумму. 
+-- Скидки суммируются.
 CREATE OR REPLACE FUNCTION f_new_price_by_disconts(
-    product_id INT
+    f_product_id INT
     , count_days INT
     , desired_date DATE default now()::date
 ) RETURNS INTEGER AS
 $$
 DECLARE
-    orders_cursor CURSOR IS SELECT * FROM pd_orders WHERE emp_id = employee_id;
-    order_count INT; 
+
+    max_orders_period INT;
 BEGIN
-    order_count := 0;
-  	FOR row IN orders_cursor LOOP
-        IF()
-	        THEN
-                
-	        END IF;
-    END LOOP;
+    max_orders_period := 0;
+    select max(f_count_orders_product(pd_products.id, count_days, desired_date)) into max_orders_period 
+    from pd_products
+    where category_id 
+    ;
+    select 
+        pd_products.id
+        , f_count_orders_product(pd_products.id, count_days, desired_date)
+    from pd_products
+    ;
     RETURN order_count;
 END;    
 $$ LANGUAGE plpgsql;
