@@ -519,10 +519,58 @@ CROSS JOIN LATERAL f_get_info_bestmanagers_month(month) AS result;
 --3запрос для января    
 SELECT *
 FROM f_get_info_bestmanagers_month(1);
+--------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+------------------------                СЛЕДУЮЩЕЕ ЗАДАНИЕ              ---------------------------------
+--------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
 
+-- 4. Написать функцию, возвращающую общее число заказов за месяц. Все аргументы функции должны принимать определенной значение.
+-- Написать проверочный запрос. 
+drop function if exists f_count_orders_per_month;
+create or replace function f_count_orders_per_month(
+    number_month INT
+) RETURNS integer as
+$$
+DECLARE
+    order_count int;
+BEGIN
+	order_count := 0;
+    select 
+        count(*) into order_count
+    from pd_orders
+    where 
+        extract(month from pd_orders.order_date)::integer = number_month
+    ;
+    return order_count;
+END;
+$$ LANGUAGE plpgsql;
+select f_count_orders_per_month(1), 1 as month;
+select f_count_orders_per_month(2), 2 as month;
 
-
-
+select sub.count_sub, sub.month, sub1.count_func
+from 
+(
+	select
+	count(*) as count_sub, extract(month from pd_orders.order_date)::integer as month
+	from pd_orders
+	group by 
+	extract(month from pd_orders.order_date)::integer
+) as sub
+inner join 
+(
+	select 
+	extract(month from pd_orders.order_date)::integer as month
+	, f_count_orders_per_month(extract(month from pd_orders.order_date)::integer) as count_func
+from pd_orders
+group by 
+	extract(month from pd_orders.order_date)::integer
+) as sub1 on sub1.month = sub.month
+;
 
 
 
@@ -553,9 +601,6 @@ BEGIN
 END;    
 $$ LANGUAGE plpgsql;
 
-Написать запросы с использованием написанной функции:  
-а. Количество доставок для каждого курьера за предыдущий месяц, для руководителей групп в отдельном атрибуте указать количество доставок в их группах.
-б. Имя и должность самого результативного руководителя за каждый месяц 2023 года.
 
  
 
