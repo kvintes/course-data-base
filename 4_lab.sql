@@ -475,17 +475,19 @@ from pd_employees
 -- б. Имя и должность самого результативного руководителя за каждый месяц 2023 года.
 drop function if exists f_get_info_bestmanagers_month;
 drop table if exists get_info_bestmanagers_month;
+drop table if exists bestmanagers_month;
 CREATE TABLE if not exists bestmanagers_month (
     count_ord int
     , month int
     , name_manager text
+    , post text
 );
 
 create or replace function f_get_info_bestmanagers_month(
     number_month INT
 ) RETURNS SETOF bestmanagers_month as
 $$
-    select sub_count_ord.count_ord, number_month, sub_count_ord.name::text
+    select sub_count_ord.count_ord, number_month, sub_count_ord.name::text, pd_posts.post
     from
     (
     	select 
@@ -496,9 +498,11 @@ $$
     (
     	select pd_employees.name as name
     	, f_count_exec_paid_orders_managedBy_emp(pd_employees.id, number_month) as count_ord
+        , pd_employees.post_id
     	from pd_employees
         where f_count_exec_paid_orders_managedBy_emp(pd_employees.id, number_month) != 0
     ) as sub_count_ord on sub_count_ord.count_ord = sub_max_ord.max_count_ord
+    inner join pd_posts on pd_posts.id = sub_count_ord.post_id
 ;
 $$ LANGUAGE sql;
 
@@ -512,7 +516,9 @@ FROM months
 CROSS JOIN LATERAL f_get_info_bestmanagers_month(month) AS result;
 
 
-
+--3запрос для января    
+SELECT *
+FROM f_get_info_bestmanagers_month(1);
 
 
 
