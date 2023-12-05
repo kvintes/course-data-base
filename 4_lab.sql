@@ -372,9 +372,162 @@ from pd_products
 
  
 
-3. Написать функцию, возвращающую число доставленных и оплаченных заказов под руководством сотрудника по его номеру за месяц. 
-Все аргументы функции должны принимать определенное значение.
-CREATE OR REPLACE FUNCTION f_delivered_orders(
+-- 3. Написать функцию, возвращающую число доставленных и оплаченных заказов под руководством сотрудника по его номеру за месяц. 
+-- Все аргументы функции должны принимать определенное значение.
+
+--вспомогательная функция возвращающая все заказы под руководством сотрудника за период по его номеру за месяц
+drop function if exists f_count_exec_paid_orders_managedBy_emp;
+drop function if exists f_get_orders_managedBy_emp;
+
+drop function if exists f_count_exec_paid_orders_By_emp;
+drop function if exists f_get_orders_By_emp;
+drop table if exists orders_managedBy_emp;
+CREATE TABLE if not exists orders_managedBy_emp (
+    id int, emp_id int, cust_id int, paid_up boolean
+        , order_date timestamp without time zone, delivery_date timestamp without time zone
+        , exec_date timestamp without time zone
+        , order_comment text
+);
+create or replace function f_get_orders_managedBy_emp(
+    employee_id INT
+    , number_month INT
+) RETURNS SETOF orders_managedBy_emp as
+$$
+    select 
+        pd_orders.id, pd_orders.emp_id, pd_orders.cust_id, pd_orders.paid_up
+        , pd_orders.order_date, pd_orders.delivery_date, pd_orders.exec_date
+        , pd_orders.order_comment
+    from pd_employees
+    inner join pd_orders on pd_orders.emp_id = pd_employees.id
+    where 
+        pd_employees.manager_id = employee_id
+        and extract(month from pd_orders.order_date)::integer = number_month
+    ;
+$$ LANGUAGE sql;
+
+create or replace function f_count_exec_paid_orders_managedBy_emp(
+    employee_id INT
+    , number_month INT
+) RETURNS integer as
+$$
+DECLARE
+    order_count int;
+BEGIN
+	order_count := 0;
+    select 
+        count(*) into order_count
+    from f_get_orders_managedBy_emp(employee_id, number_month)
+    where 
+        paid_up = true and not exec_date is NULL
+    ;
+    if (order_count is null) then order_count:=0; 
+	end if;
+    return order_count;
+END;
+$$ LANGUAGE plpgsql;
+--вспомогательная функция
+create or replace function f_get_orders_By_emp(
+    employee_id INT
+    , number_month INT
+) RETURNS SETOF orders_managedBy_emp as
+$$
+    select 
+        pd_orders.id, pd_orders.emp_id, pd_orders.cust_id, pd_orders.paid_up
+        , pd_orders.order_date, pd_orders.delivery_date, pd_orders.exec_date
+        , pd_orders.order_comment
+    from pd_orders
+    where 
+        pd_orders.emp_id = employee_id
+        and extract(month from pd_orders.order_date)::integer = number_month
+    ;
+$$ LANGUAGE sql;
+
+create or replace function f_count_exec_paid_orders_By_emp(
+    employee_id INT
+    , number_month INT
+) RETURNS integer as
+$$
+DECLARE
+    order_count int;
+BEGIN
+	order_count := 0;
+    select 
+        count(*) into order_count
+    from f_get_orders_By_emp(employee_id, number_month)
+    where 
+        paid_up = true and not exec_date is NULL
+    ;
+    if (order_count is null) then order_count:=0; 
+	end if;
+    return order_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Написать запросы с использованием написанной функции:  
+-- а. Количество доставок для каждого курьера за предыдущий месяц, 
+-- для руководителей групп в отдельном атрибуте указать количество доставок в их группах.
+select 
+	pd_employees.id
+	, f_count_exec_paid_orders_By_emp(pd_employees.id, 5)
+	, f_count_exec_paid_orders_managedBy_emp(pd_employees.id, 5)
+from pd_employees
+;
+-- б. Имя и должность самого результативного руководителя за каждый месяц 2023 года.
+drop function if exists f_get_info_bestmanagers_month;
+drop table if exists get_info_bestmanagers_month;
+CREATE TABLE if not exists bestmanagers_month (
+    count_ord int
+    , month int
+    , name_manager text
+);
+
+create or replace function f_get_info_bestmanagers_month(
+    number_month INT
+) RETURNS SETOF bestmanagers_month as
+$$
+    select sub_count_ord.count_ord, number_month, sub_count_ord.name::text
+    from
+    (
+    	select 
+    	max(f_count_exec_paid_orders_managedBy_emp(pd_employees.id, number_month)) as max_count_ord
+    	from pd_employees
+    ) as sub_max_ord
+    inner join
+    (
+    	select pd_employees.name as name
+    	, f_count_exec_paid_orders_managedBy_emp(pd_employees.id, number_month) as count_ord
+    	from pd_employees
+        where f_count_exec_paid_orders_managedBy_emp(pd_employees.id, number_month) != 0
+    ) as sub_count_ord on sub_count_ord.count_ord = sub_max_ord.max_count_ord
+;
+$$ LANGUAGE sql;
+
+WITH RECURSIVE months AS (
+    SELECT 1 AS month
+    UNION ALL
+    SELECT month + 1 FROM months WHERE month <= 12
+)
+SELECT *
+FROM months
+CROSS JOIN LATERAL f_get_info_bestmanagers_month(month) AS result;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION f_orders_(
     employee_id INT,
     month DATE
 ) RETURNS INTEGER AS
