@@ -74,7 +74,7 @@ BEGIN
         IF(row.id = employee_id)
 	        THEN
                 name := row.name;
-	        END IF;
+	    END IF;
     END LOOP;
     RETURN name;
 END;    
@@ -204,35 +204,171 @@ $$ LANGUAGE plpgsql;
 -- Количество  дней считается от введенной даты, если дата не указана то от текущей.  
 -- Условия: скидка 10% на самую часто заказываемую пиццу; скидка 5% на пиццу, которую заказывали на самую большую сумму. 
 -- Скидки суммируются.
+--drop function if exists f_new_price_by_disconts;
 CREATE OR REPLACE FUNCTION f_new_price_by_disconts(
     f_product_id INT
     , count_days INT
     , desired_date DATE default now()::date
-) RETURNS INTEGER AS
+) RETURNS money AS
 $$
 DECLARE
-
     max_orders_period INT;
+    old_price money;
+    max_costs_period money;
+    new_price money;
 BEGIN
+    ----------1----------
     max_orders_period := 0;
     select max(f_count_orders_product(pd_products.id, count_days, desired_date)) into max_orders_period 
-    from pd_products
-    where category_id 
+    from pd_products where category_id = 3 -- для пицц
+    ; -- узнать максимальное количество заказов за период в целом
+    old_price := -1;
+    select pd_products.price into old_price
+    from pd_products where pd_products.id = f_product_id
     ;
-    select 
-        pd_products.id
-        , f_count_orders_product(pd_products.id, count_days, desired_date)
+    new_price := -1; -- считаем скидку на самую часто заказываемую
+    select sub.price into new_price
+    from
+    (select 
+    case 
+        when 
+            f_count_orders_product(pd_products.id, count_days, desired_date) = max_orders_period 
+            and pd_products.category_id = 3 
+        then old_price * 0.9
+        else pd_products.price
+    end
+        as price
     from pd_products
+    where pd_products.id = f_product_id) as sub
     ;
-    RETURN order_count;
+    ----------2----------
+    max_costs_period := 0::money;
+    select max(f_count_costs_product(pd_products.id, count_days, desired_date)) into max_costs_period 
+    from pd_products where category_id = 3 -- для пицц
+    ; -- узнать максимальную стоимость заказов за период в целом
+    select sub.price into new_price
+    from
+    (select 
+    case 
+        when 
+            f_count_costs_product(pd_products.id, count_days, desired_date) = max_costs_period 
+            and pd_products.category_id = 3 
+        then new_price - old_price * 0.05
+        else new_price
+    end
+        as price
+    from pd_products
+    where pd_products.id = f_product_id) as sub
+    ;
+    RETURN new_price;
 END;    
 $$ LANGUAGE plpgsql;
-TODO
 -- Написать запросы с использованием написанной функции:  
 -- а. Скидка на все пиццы по итогам последних 20 дней.
-TODO
+select 
+	pd_products.id
+	, pd_products.price
+	, f_new_price_by_disconts(pd_products.id, 20+61) as new_price
+from pd_products
+where pd_products.category_id = 3--пиццы
+;
+
 -- б. Пицца с максимальной скидкой за каждый месяц 2023 года.
-TODO
+select sub_main.months, sub_main.id, sub_main.discount
+from
+(
+    select 
+        sub_months.months as months
+        , 
+        case 
+            when sub_months.months::int = 1
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-01-31'::date)
+            when sub_months.months::int = 2
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 28, '2023-02-28'::date)
+            when sub_months.months::int = 3
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-03-31'::date)
+            when sub_months.months::int = 4
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 30, '2023-04-30'::date)
+            when sub_months.months::int = 5
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-05-31'::date)
+            when sub_months.months::int = 6
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 30, '2023-06-30'::date)
+            when sub_months.months::int = 7
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-07-31'::date)
+            when sub_months.months::int = 8
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-08-31'::date)
+            when sub_months.months::int = 9
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 30, '2023-09-30'::date)
+            when sub_months.months::int = 10
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-10-31'::date)
+            when sub_months.months::int = 11
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 30, '2023-01-30'::date)
+            else
+            pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-12-31'::date)
+        end as discount
+        , pd_products.id as id
+        from pd_products
+        inner join
+        (
+            select extract(month from pd_orders.order_date) as months
+            from pd_orders
+            WHERE pd_orders.order_date BETWEEN '2023-01-01' AND '2023-12-31'
+            group by extract(month from pd_orders.order_date)
+        ) as sub_months on true
+) as sub_main
+
+inner join 
+(
+    select subquery.months as months, max(-subquery.discount::numeric) as max_discount from
+    (
+    select 
+        sub_months.months as months
+        , 
+        case 
+            when sub_months.months::int = 1
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-01-31'::date)
+            when sub_months.months::int = 2
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 28, '2023-02-28'::date)
+            when sub_months.months::int = 3
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-03-31'::date)
+            when sub_months.months::int = 4
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 30, '2023-04-30'::date)
+            when sub_months.months::int = 5
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-05-31'::date)
+            when sub_months.months::int = 6
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 30, '2023-06-30'::date)
+            when sub_months.months::int = 7
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-07-31'::date)
+            when sub_months.months::int = 8
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-08-31'::date)
+            when sub_months.months::int = 9
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 30, '2023-09-30'::date)
+            when sub_months.months::int = 10
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-10-31'::date)
+            when sub_months.months::int = 11
+            then pd_products.price - f_new_price_by_disconts(pd_products.id, 30, '2023-01-30'::date)
+            else
+            pd_products.price - f_new_price_by_disconts(pd_products.id, 31, '2023-12-31'::date)
+        end as discount
+        from pd_products
+        inner join
+        (
+            select extract(month from pd_orders.order_date) as months
+            from pd_orders
+            WHERE pd_orders.order_date BETWEEN '2023-01-01' AND '2023-12-31'
+            group by extract(month from pd_orders.order_date)
+        ) as sub_months on true
+    ) as subquery
+    group by subquery.months
+) as sub_max_discont_month on sub_main.months = sub_max_discont_month.months and -sub_main.discount::numeric = sub_max_discont_month.max_discount
+;
+--в максимальная скидка за продукты за весь период
+select pd_products.id, f_new_price_by_disconts(pd_products.id, 100000)
+from pd_products
+;
+
+
+
 
  
 
@@ -305,4 +441,54 @@ percent – процент.
 Предварительно таблица не заполнена.  
 Напишите процедуру, заполняющую или обновляющую таблицу бонусов за указанный месяц.  
 Напишите проверочные запросы.
+--мрак
+CREATE OR REPLACE FUNCTION f_count_orders_product( -- считает количество заказов продукта за промежуток
+    f_product_id INT
+    , count_days INT
+    , desired_date DATE default now()::date
+) RETURNS INTEGER AS
+$$
+DECLARE
+    order_count INT; 
+BEGIN
+    order_count := 0;
+    select count(*) into order_count from (   
+        select * from pd_orders
+        inner join pd_order_details on pd_order_details.order_id = pd_orders.id
+        inner join pd_products on pd_products.id = pd_order_details.product_id
+        where 
+		pd_products.id = f_product_id 
+		and pd_orders.order_date::date <= desired_date
+		and pd_orders.order_date::date >= desired_date::date - interval '1 day' * count_days
+    )as sub;
+    RETURN order_count;
+END;    
+$$ LANGUAGE plpgsql;
+select max(f_count_orders_product(pd_products.id, 1000)::integer)
+from pd_products
+;
+select * from pd_categories;
 
+CREATE OR REPLACE FUNCTION f_count_orders_product( -- считает количество заказов продукта за промежуток
+    f_product_id INT
+    , count_days INT
+    , desired_date DATE default now()::date
+) RETURNS INTEGER AS
+$$
+DECLARE
+
+    max_orders_period INT;
+BEGIN
+    max_orders_period := 0;
+    select max(f_count_orders_product(pd_products.id, count_days, desired_date)) into max_orders_period 
+    from pd_products
+    where category_id 
+    ;
+    select 
+        pd_products.id
+        , f_count_orders_product(pd_products.id, count_days, desired_date)
+    from pd_products
+    ;
+    RETURN order_count;
+END;    
+$$ LANGUAGE plpgsql;
