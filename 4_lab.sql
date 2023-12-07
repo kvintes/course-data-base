@@ -5,6 +5,7 @@
 --      1задание        --
 -- 1. Написать функцию, возвращающую число доставленных заказов по номеру сотрудника за месяц. 
 -- Заказы должны быть отмеченные как доставленные и оплаченные. Все аргументы функции должны принимать определенной значение.
+--date_trunc('month', month)month DATE
 CREATE OR REPLACE FUNCTION f_delivered_orders(
     employee_id INT,
     month DATE
@@ -661,16 +662,131 @@ select
 from pd_products
 group by pd_products.category_id
 ;  
-6. Написать функцию, возвращающую максимальную общую стоимость заказа (не учитывать другие товары в заказе) для каждого товара за указанный месяц года. Если месяц не указан, выводить стоимость максимальную стоимость за всё время.
-Параметры функции: месяц года (даты с точностью до месяца) и номер товара.
-Написать запрос использованием написанной функции: список товаров с наименованиями и стоимостями за всё время и за сентябрь 2023 года.
 
- 
+-- 6. Написать функцию, возвращающую максимальную общую стоимость заказа (не учитывать другие товары в заказе) 
+-- для каждого товара за указанный месяц года. 
+-- Если месяц не указан, выводить стоимость максимальную стоимость за всё время.
+-- Параметры функции: месяц года (даты с точностью до месяца) и номер товара.
+-- Написать запрос использованием написанной функции: список товаров с наименованиями и стоимостями за всё время и за сентябрь 2023 года.
 
-7. Сформировать “открытку” с поздравлением всех именинников заранее заданного месяца:
-“В <название месяца> мы поздравляем с днём рождения: <имя, имя > и <имя >”. Скобки вида “<>”  выводить не нужно. Написать проверочные запросы.
+drop function if exists f_costs_product_inOrder;
+CREATE OR REPLACE FUNCTION f_costs_product_inOrder(
+    f_id_product INT
+    , number_month date default 'infinity'::date --date_trunc('month', month) --month DATE
+) RETURNS numeric AS
+$$
+DECLARE
+    costs_product_inOrder NUMERIC := 0; 
+    costs_product_inOrder_2 NUMERIC := 0;
+    ffinal NUMERIC := 0;
+BEGIN
+    if number_month < 'infinity'
+    then
+        select max(pd_products.price::numeric * pd_order_details.quantity) into costs_product_inOrder
+        from pd_orders
+        inner join pd_order_details on pd_order_details.order_id = pd_orders.id
+        inner join pd_products on pd_products.id = pd_order_details.product_id
+        where 
+            pd_products.id = f_id_product
+            and 
+            date_trunc('month', pd_orders.order_date) = date_trunc('month', number_month)
+        ;  
+    else
+        select max(pd_products.price::numeric * pd_order_details.quantity) into costs_product_inOrder_2
+        from pd_orders
+        inner join pd_order_details on pd_order_details.order_id = pd_orders.id
+        inner join pd_products on pd_products.id = pd_order_details.product_id
+        where 
+            pd_products.id = f_id_product
+        ;  
+	end if;
+    IF number_month < 'infinity' THEN
+        ffinal := costs_product_inOrder;
+    ELSE
+        ffinal := costs_product_inOrder_2;
+    END IF;
+    RETURN ffinal;
+END;    
+$$ LANGUAGE plpgsql;
 
- 
+select pd_products.id, f_costs_product_inOrder(pd_products.id) as max_costs_allTime
+, f_costs_product_inOrder(pd_products.id, pd_orders.order_date::date) as max_costs_monthDate
+from pd_products
+inner join pd_order_details on pd_order_details.order_id = pd_products.id
+inner join pd_orders on pd_orders.id = pd_order_details.order_id
+;
+-- Написать запрос использованием написанной функции: список товаров с наименованиями и стоимостями за всё время и за сентябрь 2023 года.
+select distinct
+    pd_products.id, pd_products.product_name
+    , f_costs_product_inOrder(pd_products.id) as max_costs_allTime
+    , f_costs_product_inOrder(pd_products.id, pd_orders.order_date::date) as max_costs_September
+from pd_products
+inner join pd_order_details on pd_order_details.order_id = pd_products.id
+inner join pd_orders on pd_orders.id = pd_order_details.order_id
+where pd_orders.order_date BETWEEN '2023-10-01' AND '2023-10-30'
+;
+
+select distinct
+    pd_products.id, pd_products.product_name
+    , f_costs_product_inOrder(pd_products.id) as max_costs_allTime
+    , sub.max_costs_allTime as max_costs_check
+from pd_products
+inner join pd_order_details on pd_order_details.order_id = pd_products.id
+inner join pd_orders on pd_orders.id = pd_order_details.order_id
+inner join
+(
+	select 
+    pd_products.id as id
+    , max(f_costs_product_inOrder(pd_products.id, pd_orders.order_date::date)) as max_costs_allTime
+	from pd_products
+	inner join pd_order_details on pd_order_details.product_id = pd_products.id
+	inner join pd_orders on pd_orders.id = pd_order_details.order_id
+	group by pd_products.id
+) as sub on sub.id = pd_products.id
+--where pd_orders.order_date BETWEEN '2023-01-01' AND '2023-12-31'
+;
+
+-- 7. Сформировать “открытку” с поздравлением всех именинников заранее заданного месяца:
+-- “В <название месяца> мы поздравляем с днём рождения: <имя, имя > и <имя >”. Скобки вида “<>”  выводить не нужно. Написать проверочные запросы.
+
+drop function if exists f_get_birthday_letter;
+CREATE OR REPLACE FUNCTION f_get_birthday_letter(
+    number_month date default 'infinity'::date --date_trunc('month', month) --month DATE
+) RETURNS numeric AS
+$$
+DECLARE
+    costs_product_inOrder NUMERIC := 0; 
+    costs_product_inOrder_2 NUMERIC := 0;
+    ffinal NUMERIC := 0;
+BEGIN
+    if number_month < 'infinity'
+    then
+        select max(pd_products.price::numeric * pd_order_details.quantity) into costs_product_inOrder
+        from pd_orders
+        inner join pd_order_details on pd_order_details.order_id = pd_orders.id
+        inner join pd_products on pd_products.id = pd_order_details.product_id
+        where 
+            pd_products.id = f_id_product
+            and 
+            date_trunc('month', pd_orders.order_date) = date_trunc('month', number_month)
+        ;  
+    else
+        select max(pd_products.price::numeric * pd_order_details.quantity) into costs_product_inOrder_2
+        from pd_orders
+        inner join pd_order_details on pd_order_details.order_id = pd_orders.id
+        inner join pd_products on pd_products.id = pd_order_details.product_id
+        where 
+            pd_products.id = f_id_product
+        ;  
+	end if;
+    IF number_month < 'infinity' THEN
+        ffinal := costs_product_inOrder;
+    ELSE
+        ffinal := costs_product_inOrder_2;
+    END IF;
+    RETURN ffinal;
+END;    
+$$ LANGUAGE plpgsql;
 
 8. Написать процедуру, создающую новый заказ как копию существующего заказа, чей номер – аргумент функции. Новый заказ должен иметь соответствующий статус.
 Написать проверочные запросы.
