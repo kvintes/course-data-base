@@ -791,69 +791,31 @@ select * from f_get_birthday_letter('2001-02-10');
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 8. Написать процедуру, создающую новый заказ как копию существующего заказа, чей номер – аргумент функции. Новый заказ должен иметь соответствующий статус.
 Написать проверочные запросы.
+drop PROCEDURE if exists insert_data_pd_orders_copy;
 
+CREATE PROCEDURE insert_data_pd_orders_copy(f_id_order integer)
+LANGUAGE SQL
+AS $$ -- 6010 - последний id
+    INSERT INTO pd_orders (id, emp_id, cust_id, paid_up, order_date, delivery_date, exec_date, order_state, order_comment)
+    SELECT id*10, emp_id, cust_id, false, order_date, delivery_date, exec_date, 'NEW', order_comment
+    FROM pd_orders
+    WHERE pd_orders.id = f_id_order;
+$$;
+
+CALL insert_data_pd_orders_copy(6010);
+select * from pd_orders
+where id = 6010 or id = 60100;
+
+CALL insert_data_pd_orders_copy(6011);
+select * from pd_orders
+where id = 6011 or id = 60110;
+
+CALL insert_data_pd_orders_copy(6012);
+select * from pd_orders
+where id = 6012 or id = 60120;
  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 9. Создать таблицу pd_bonus для расчёта премий сотрудников.

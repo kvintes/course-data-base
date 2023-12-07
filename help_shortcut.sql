@@ -4,7 +4,7 @@ id, emp_id, cust_id, paid_up
         , order_date, delivery_date
         , exec_date
         , order_comment
-
+id, emp_id, cust_id, paid_up, order_date, delivery_date, exec_date, order_comment
 
 DROP FUNCTION IF EXISTS f_costs_product_inOrder;
 
