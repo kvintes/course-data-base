@@ -750,48 +750,111 @@ inner join
 -- “В <название месяца> мы поздравляем с днём рождения: <имя, имя > и <имя >”. Скобки вида “<>”  выводить не нужно. Написать проверочные запросы.
 
 drop function if exists f_get_birthday_letter;
+drop table if exists postcard;
+CREATE TABLE if not exists postcard (
+    congratulation text
+);
 CREATE OR REPLACE FUNCTION f_get_birthday_letter(
-    number_month date default 'infinity'::date --date_trunc('month', month) --month DATE
-) RETURNS numeric AS
+    f_month date
+) 
+RETURNS SETOF postcard as
 $$
-DECLARE
-    costs_product_inOrder NUMERIC := 0; 
-    costs_product_inOrder_2 NUMERIC := 0;
-    ffinal NUMERIC := 0;
-BEGIN
-    if number_month < 'infinity'
-    then
-        select max(pd_products.price::numeric * pd_order_details.quantity) into costs_product_inOrder
-        from pd_orders
-        inner join pd_order_details on pd_order_details.order_id = pd_orders.id
-        inner join pd_products on pd_products.id = pd_order_details.product_id
-        where 
-            pd_products.id = f_id_product
-            and 
-            date_trunc('month', pd_orders.order_date) = date_trunc('month', number_month)
-        ;  
-    else
-        select max(pd_products.price::numeric * pd_order_details.quantity) into costs_product_inOrder_2
-        from pd_orders
-        inner join pd_order_details on pd_order_details.order_id = pd_orders.id
-        inner join pd_products on pd_products.id = pd_order_details.product_id
-        where 
-            pd_products.id = f_id_product
-        ;  
-	end if;
-    IF number_month < 'infinity' THEN
-        ffinal := costs_product_inOrder;
-    ELSE
-        ffinal := costs_product_inOrder_2;
-    END IF;
-    RETURN ffinal;
-END;    
-$$ LANGUAGE plpgsql;
+    select
+        concat('В ', to_char(f_month, 'Month'),'мы поздравляем с днём рождения: ', all_names)::text
+    from 
+	(
+		select STRING_AGG(name, ', ') AS all_names  FROM pd_employees
+		where extract(month from pd_employees.birthday::date) = extract(month from f_month::date)
+	) as sub
+    
+;
+$$ LANGUAGE sql;
+
+
+select * from f_get_birthday_letter('2001-05-10');
+-- select pd_employees.birthday::date, pd_employees.name
+-- from pd_employees
+-- where extract(month from pd_employees.birthday::date) = 5
+-- ;
+select * from f_get_birthday_letter('2001-01-10');
+-- select pd_employees.birthday::date, pd_employees.name
+-- from pd_employees
+-- where extract(month from pd_employees.birthday::date) = 1
+-- ;
+select * from f_get_birthday_letter('2001-02-10');
+-- select pd_employees.birthday::date, pd_employees.name
+-- from pd_employees
+-- where extract(month from pd_employees.birthday::date) = 2
+-- ;
+-- SELECT STRING_AGG(name, ', ') AS all_names
+-- FROM pd_employees;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 8. Написать процедуру, создающую новый заказ как копию существующего заказа, чей номер – аргумент функции. Новый заказ должен иметь соответствующий статус.
 Написать проверочные запросы.
 
  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 9. Создать таблицу pd_bonus для расчёта премий сотрудников.
 Таблица должна содержать поля:
