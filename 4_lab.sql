@@ -602,18 +602,65 @@ END;
 $$ LANGUAGE plpgsql;
 
 
- 
-
-4. Написать функцию, возвращающую общее число заказов за месяц. Все аргументы функции должны принимать определенной значение.
-Написать проверочный запрос.
-
- 
-
-5. Написать функцию, выводящую насколько цена продукта больше чем средняя цена в категории.
-Написать проверочный запрос.
-
- 
-
+-- 5. Написать функцию, выводящую насколько цена продукта больше чем средняя цена в категории.
+-- Написать проверочный запрос.
+--функция получающая category_id и возвращающая среднюю цену в категории
+drop function if exists f_avg_price_category;
+CREATE OR REPLACE FUNCTION f_avg_price_category(
+    f_id_categoty INT
+) RETURNS numeric AS
+$$
+DECLARE
+    f_avg_price numeric; 
+BEGIN
+    f_avg_price := 0;
+    select sub.avg_price into f_avg_price 
+    from
+    (
+        select avg(pd_products.price::numeric) as avg_price
+        from pd_products
+        group by pd_products.category_id 
+        having pd_products.category_id = f_id_categoty
+    ) as sub
+  	;
+    RETURN f_avg_price;
+END;    
+$$ LANGUAGE plpgsql;
+-- искомая функция, разница между ценой продукта и средней ценой в его категории
+--подаем на вход id продукта и возвращаем разницу в цене
+drop function if exists f_dif_price_avgPrice;
+CREATE OR REPLACE FUNCTION f_dif_price_avgPrice(
+    f_id_product INT
+) RETURNS numeric AS
+$$
+DECLARE
+    f_difference_price_avgPrice numeric; 
+BEGIN
+    f_difference_price_avgPrice := 0;
+    select 
+        pd_products.price::numeric - f_avg_price_category(pd_products.category_id) into f_difference_price_avgPrice
+    from pd_products
+    where pd_products.id = f_id_product
+  	;
+    RETURN f_difference_price_avgPrice;
+END;    
+$$ LANGUAGE plpgsql;
+--разница цены
+select 
+    pd_products.id, pd_products.product_name, f_dif_price_avgPrice(pd_products.id) 
+from pd_products;
+-- процент разница цены
+select 
+    pd_products.id, pd_products.product_name
+	, f_dif_price_avgPrice(pd_products.id) / pd_products.price::numeric * 100 as percent_difference_price
+from pd_products;
+-- максимальный процент разницы цены и средней цены_категории по категориям
+select 
+    pd_products.category_id
+	, max(f_dif_price_avgPrice(pd_products.id) / pd_products.price::numeric * 100) as max_percent_difference_price
+from pd_products
+group by pd_products.category_id
+;  
 6. Написать функцию, возвращающую максимальную общую стоимость заказа (не учитывать другие товары в заказе) для каждого товара за указанный месяц года. Если месяц не указан, выводить стоимость максимальную стоимость за всё время.
 Параметры функции: месяц года (даты с точностью до месяца) и номер товара.
 Написать запрос использованием написанной функции: список товаров с наименованиями и стоимостями за всё время и за сентябрь 2023 года.
