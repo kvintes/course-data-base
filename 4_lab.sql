@@ -335,7 +335,7 @@ from
 
 inner join 
 (
-    select subquery.months as months, max(-subquery.discount::numeric) as max_discount from
+    select subquery.months as months, max(subquery.discount::numeric) as max_discount from
     (
     select 
         sub_months.months as months
@@ -376,7 +376,7 @@ inner join
         ) as sub_months on true
     ) as subquery
     group by subquery.months
-) as sub_max_discont_month on sub_main.months = sub_max_discont_month.months and -sub_main.discount::numeric = sub_max_discont_month.max_discount
+) as sub_max_discont_month on sub_main.months = sub_max_discont_month.months and sub_main.discount::numeric = sub_max_discont_month.max_discount
 ;
 --в максимальная скидка за продукты за весь период
 select pd_products.id, f_new_price_by_disconts(pd_products.id, 100000)
