@@ -904,7 +904,7 @@ END;
 $$;
 
 CALL insert_data(1, 2);
-
+select date_trunc('month', '2023-05-08'::date)::date; -- PLLLRKOOIERIOJOERJGOPREKGKREG
 
 
 
@@ -1034,4 +1034,3 @@ BEGIN
     RETURN order_count;
 END;    
 $$ LANGUAGE plpgsql;
-select date_trunc('month', '2023-05-08'::date)::date; -- PLLLRKOOIERIOJOERJGOPREKGKREG
