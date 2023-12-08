@@ -819,20 +819,162 @@ where id = 6012 or id = 60120;
 
 
 9. Создать таблицу pd_bonus для расчёта премий сотрудников.
-Таблица должна содержать поля:
+--функция возвращающая количество просроченных сотрдуником заказов за месяц
+drop function if exists f_count_orders_emp_month__overdue;
+CREATE OR REPLACE FUNCTION f_count_orders_emp_month__overdue( -- считает количество заказов продукта за промежуток
+    f_emp_id int
+    , number_month date default 'infinity'::date
+) RETURNS INTEGER AS
+$$
+DECLARE
+    order_count INT := 0;
+    order_count_2 INT := 0;
+    ffinal INT := 0;
+BEGIN
+    if number_month < 'infinity'
+    then
+        select count(*) into order_count -- всего заказов за месяц просроченных
+        from (   
+            select * from pd_orders
+            where 
+	    	pd_orders.emp_id = f_emp_id 
+	    	and pd_orders.delivery_date::date < pd_orders.exec_date::date
+            and date_trunc('month', pd_orders.order_date::date) = date_trunc('month', number_month::date)
+        )as sub
+    else
+        select count(*) into order_count_2 -- всего заказов за месяц
+        from (   
+            select * from pd_orders
+            where 
+	    	pd_orders.emp_id = f_emp_id 
+            and date_trunc('month', pd_orders.order_date::date) = date_trunc('month', number_month::date)
+        )as sub
+    end if;
+    IF number_month < 'infinity' THEN
+        ffinal := order_count;
+    ELSE
+        ffinal := order_count_2;
+    END IF;
+    RETURN ffinal;
+END;    
+$$ LANGUAGE plpgsql;
+----------------------------------------------------------------------------------------------------
+Таблица pd_bonus должна содержать поля:
 emp_id – ссылка на сотрудника;
 month – первый день месяца;
 amount – размер бонуса;
 percent – процент.
-
-Премия  рассчитывается по правилам:
-10% от оклада (смотри таблицу с должностями) - если в месяц было не более 4% просроченных заказов;
-5% -  есть в месяц было не более 8% просроченных заказов;
--5% если в течении месяца было просрочено более 15% заказов.
-
-Предварительно таблица не заполнена.  
+drop table if exists pd_bonus;
+CREATE TABLE if not exists pd_bonus (
+    emp_id int
+    , month date
+    , amount int --размер бонуса
+    , percent numeric
+    , constraint PK_pd_bonus primary key (emp_id, month)
+);
+----------------------------------------------------------------------------------------------------
+Предварительно таблица pd_bonus не заполнена.  
 Напишите процедуру, заполняющую или обновляющую таблицу бонусов за указанный месяц.  
 Напишите проверочные запросы.
+--функция для расчета премии
+drop PROCEDURE if exists insert_data_pd_bonus;
+CREATE PROCEDURE insert_data(p_emp_id integer, p_month date)
+LANGUAGE SQL
+AS $$
+DECLARE
+    flag_fulling INT := -1;
+begin
+    select pd_bonus.percent into flag_fulling
+        from pd_bonus
+    where 
+        pd_bonus.emp_id = p_emp_id 
+        and date_trunc('month', pd_bonus.month::date) = date_trunc('month', p_month::date)
+    if flag_fulling is NULL or flag_fulling < 0
+    then
+        INSERT into pd_bonus 
+        values(emp_id, month, amount, percent)
+        select pd_orders.emp_id, 
+
+        from pd_orders
+    else
+    end if;
+	INSERT INTO tbl VALUES (a);
+	INSERT INTO tbl VALUES (b);
+END;
+$$;
+
+CALL insert_data(1, 2);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 --мрак
 CREATE OR REPLACE FUNCTION f_count_orders_product( -- считает количество заказов продукта за промежуток
     f_product_id INT
@@ -869,18 +1011,27 @@ CREATE OR REPLACE FUNCTION f_count_orders_product( -- считает колич�
 $$
 DECLARE
 
-    max_orders_period INT;
+    max_orders_period INT := 0;
 BEGIN
-    max_orders_period := 0;
-    select max(f_count_orders_product(pd_products.id, count_days, desired_date)) into max_orders_period 
-    from pd_products
-    where category_id 
-    ;
-    select 
-        pd_products.id
-        , f_count_orders_product(pd_products.id, count_days, desired_date)
-    from pd_products
-    ;
+    if number_month < 'infinity'
+    then
+        select max(f_count_orders_product(pd_products.id, count_days, desired_date)) into max_orders_period 
+        from pd_products
+        where category_id 
+        select 
+            pd_products.id
+            , f_count_orders_product(pd_products.id, count_days, desired_date)
+        from pd_products
+        ;
+
+    end if;
+    IF number_month < 'infinity' THEN
+        ffinal := costs_product_inOrder;
+    ELSE
+        ffinal := costs_product_inOrder_2;
+    END IF;
+    RETURN ffinal;
     RETURN order_count;
 END;    
 $$ LANGUAGE plpgsql;
+select date_trunc('month', '2023-05-08'::date)::date; -- PLLLRKOOIERIOJOERJGOPREKGKREG
