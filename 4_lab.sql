@@ -818,52 +818,125 @@ where id = 6012 or id = 60120;
  
 
 
-9. Создать таблицу pd_bonus для расчёта премий сотрудников.
+-- 9. Создать таблицу pd_bonus для расчёта премий сотрудников.
 --функция возвращающая количество просроченных сотрдуником заказов за месяц
 drop function if exists f_count_orders_emp_month__overdue;
 CREATE OR REPLACE FUNCTION f_count_orders_emp_month__overdue( -- считает количество заказов продукта за промежуток
     f_emp_id int
     , number_month date default 'infinity'::date
+    , flag_overdue boolean default false
 ) RETURNS INTEGER AS
 $$
 DECLARE
-    order_count INT := 0;
-    order_count_2 INT := 0;
+    order_count_month_overdue INT := 0;
+    order_count_month INT := 0;
+    order_count_all INT := 0;
     ffinal INT := 0;
 BEGIN
     if number_month < 'infinity'
     then
-        select count(*) into order_count -- всего заказов за месяц просроченных
+        if flag_overdue = true then
+        select count(*) into order_count_month_overdue -- всего заказов за месяц просроченных
         from (   
             select * from pd_orders
             where 
 	    	pd_orders.emp_id = f_emp_id 
-	    	and pd_orders.delivery_date::date < pd_orders.exec_date::date
+	    	and pd_orders.delivery_date < pd_orders.exec_date
             and date_trunc('month', pd_orders.order_date::date) = date_trunc('month', number_month::date)
         )as sub
+		;
+        else
+        select count(*) into order_count_month -- всего заказов за месяц
+        from (   
+            select * from pd_orders
+            where 
+	    	pd_orders.emp_id = f_emp_id 
+            and date_trunc('month', pd_orders.order_date::date) = date_trunc('month', number_month::date)
+        )as sub
+		;
+        end if;
     else
-        select count(*) into order_count_2 -- всего заказов за месяц
+        select count(*) into order_count_all -- всего заказов за месяц
         from (   
             select * from pd_orders
             where 
 	    	pd_orders.emp_id = f_emp_id 
-            and date_trunc('month', pd_orders.order_date::date) = date_trunc('month', number_month::date)
         )as sub
+		;
     end if;
     IF number_month < 'infinity' THEN
-        ffinal := order_count;
+        if flag_overdue = true then
+            ffinal := order_count_month_overdue
+        ;
+        else
+            ffinal := order_count_month
+        ;
+        end if;
     ELSE
-        ffinal := order_count_2;
+        ffinal := order_count_all;
     END IF;
     RETURN ffinal;
 END;    
 $$ LANGUAGE plpgsql;
 ----------------------------------------------------------------------------------------------------
-Таблица pd_bonus должна содержать поля:
-emp_id – ссылка на сотрудника;
-month – первый день месяца;
-amount – размер бонуса;
-percent – процент.
+----------------------------------------------------------------------------------------------------
+-- Предварительно таблица pd_bonus не заполнена.  
+-- Напишите процедуру, заполняющую или обновляющую таблицу бонусов за указанный месяц.  
+-- Напишите проверочные запросы.
+drop function if exists f_get_bonus;
+CREATE OR REPLACE FUNCTION f_get_bonus( -- считает количество заказов продукта за промежуток
+    f_emp_id int
+    , number_month date default 'infinity'::date
+) RETURNS INTEGER AS
+$$
+DECLARE
+    new_salary numeric := 0;
+    count_month_orders numeric := f_count_orders_emp_month__overdue(f_emp_id, number_month);
+    count_month_orders_overdue numeric := f_count_orders_emp_month__overdue(f_emp_id, number_month, true);
+    current_salary_amount numeric := 0;
+BEGIN
+    select pd_posts.salary_amount into current_salary_amount
+    from pd_employees
+    inner join pd_posts on pd_posts.id = pd_employees.post_id
+    where pd_employees.id = f_emp_id
+    ;
+    if count_month_orders <> 0
+        then
+        if count_month_orders_overdue/count_month_orders > 0.15
+        then new_salary = current_salary_amount * 0.95
+        ;
+        elsif 
+            count_month_orders_overdue/count_month_orders < 0.08
+            and count_month_orders_overdue/count_month_orders >= 0.04
+        then new_salary = current_salary_amount * 1.05
+        ;
+        elsif count_month_orders_overdue/count_month_orders < 0.04
+        then new_salary = current_salary_amount * 1.1
+        ;
+		end if;
+    else
+        new_salary = current_salary_amount;
+	end if;
+    return new_salary;
+END;    
+$$ LANGUAGE plpgsql;
+--------проверочные запросы------------
+-- select 
+--     pd_employees.id, f_get_bonus(id, '2023-05-01'::date) as bonus
+-- from pd_employees;
+
+-- select 
+--     pd_employees.id, f_get_bonus(pd_employees.id, '2023-06-01'::date) as bonus
+-- 	, pd_posts.salary_amount as current_salary
+-- 	, f_count_orders_emp_month__overdue(pd_employees.id, '2023-06-01'::date, true)as overdue_month
+-- 	, f_count_orders_emp_month__overdue(pd_employees.id, '2023-06-01'::date) as month
+-- from pd_employees
+-- inner join pd_posts on pd_posts.id = pd_employees.post_id;
+--------проверочные запросы------------
+--функция для расчета премии
+-- 10% от оклада (смотри таблицу с должностями) - если в месяц было не более 4% просроченных заказов;
+-- 5% -  есть в месяц было не более 8% просроченных заказов;
+-- -5% если в течении месяца было просрочено более 15% заказов.
 drop table if exists pd_bonus;
 CREATE TABLE if not exists pd_bonus (
     emp_id int
@@ -872,40 +945,59 @@ CREATE TABLE if not exists pd_bonus (
     , percent numeric
     , constraint PK_pd_bonus primary key (emp_id, month)
 );
-----------------------------------------------------------------------------------------------------
-Предварительно таблица pd_bonus не заполнена.  
-Напишите процедуру, заполняющую или обновляющую таблицу бонусов за указанный месяц.  
-Напишите проверочные запросы.
---функция для расчета премии
 drop PROCEDURE if exists insert_data_pd_bonus;
-CREATE PROCEDURE insert_data(p_emp_id integer, p_month date)
-LANGUAGE SQL
+CREATE PROCEDURE insert_data_pd_bonus(p_emp_id integer, p_month date)
 AS $$
 DECLARE
-    flag_fulling INT := -1;
+    flag_fulling integer := -1;
 begin
     select pd_bonus.percent into flag_fulling
         from pd_bonus
     where 
         pd_bonus.emp_id = p_emp_id 
         and date_trunc('month', pd_bonus.month::date) = date_trunc('month', p_month::date)
-    if flag_fulling is NULL or flag_fulling < 0
+	;
+    if flag_fulling is NULL
     then
         INSERT into pd_bonus 
-        values(emp_id, month, amount, percent)
-        select pd_orders.emp_id, 
-
-        from pd_orders
-    else
+        (emp_id, month, amount, percent)
+        select 
+            p_emp_id, p_month, f_get_bonus(p_emp_id, p_month)
+            , 
+            case 
+            when (f_get_bonus(p_emp_id, p_month)/pd_posts.salary_amount::numeric) = 1.1 then 10
+            when (f_get_bonus(p_emp_id, p_month)/pd_posts.salary_amount::numeric) = 1.05 then 5
+            when (f_get_bonus(p_emp_id, p_month)/pd_posts.salary_amount::numeric) = 0.95 then -5
+            end as percent_bonus_salary
+        from pd_employees
+        inner join pd_posts on pd_posts.id = pd_employees.post_id
+        where pd_employees.id = p_emp_id
+        ;
+    else -- нужно обновить кортеж в таблице
+        UPDATE pd_bonus
+        SET
+		amount = f_get_bonus(p_emp_id, p_month)::int
+		, percent = (select 
+            case 
+            when (f_get_bonus(p_emp_id, p_month)/pd_posts.salary_amount::numeric) = 1.1 then 10
+            when (f_get_bonus(p_emp_id, p_month)/pd_posts.salary_amount::numeric) = 1.05 then 5
+            else -5--(f_get_bonus(p_emp_id, p_month)/pd_posts.salary_amount::numeric) = 0.95 then -5
+            end as percent_bonus_salary
+            from pd_employees
+            inner join pd_posts on pd_posts.id = pd_employees.post_id
+            where pd_employees.id = p_emp_id
+            and date_trunc('month', pd_bonus.month::date) = date_trunc('month', p_month::date))
+		;
     end if;
-	INSERT INTO tbl VALUES (a);
-	INSERT INTO tbl VALUES (b);
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
-CALL insert_data(1, 2);
-select date_trunc('month', '2023-05-08'::date)::date; -- PLLLRKOOIERIOJOERJGOPREKGKREG
-
+CALL insert_data_pd_bonus(1, '2023-05-08'::date);
+select * from pd_bonus;
+CALL insert_data_pd_bonus(10, '2023-06-08'::date);
+select * from pd_bonus;
+CALL insert_data_pd_bonus(1, '2023-06-08'::date);
+select * from pd_bonus;
 
 
 
