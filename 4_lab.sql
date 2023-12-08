@@ -526,7 +526,7 @@ WITH RECURSIVE months AS (
 SELECT *
 FROM months
 CROSS JOIN LATERAL f_get_info_bestmanagers_month(month) AS result;
-
+ 
 
 --3запрос для января    
 SELECT *
