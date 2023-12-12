@@ -8,10 +8,10 @@ SET search_path TO it;
 
 drop function if exists F_countClimbings_climber;
 create or replace function F_countClimbings_climber(
-    id_альпиниста integer
-    , f_data date defailt now()::date
-    , f_N_days integer defailt 100000
-) returns as integer  $$
+    f_ID_Альпиниста integer
+    , f_data date default now()::date
+    , f_N_days integer default 100000
+) returns integer as $$
 declare
     count_climbings integer := 0
 ;
@@ -23,19 +23,22 @@ begin
     where 
         Восхождения.Дата_начала::date <= f_data
         and Восхождения.Дата_начала::date >= f_data - interval '1 day' * f_N_days
+		and Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста
     ;
     return count_climbings;
 end;
 $$ language plpgsql;
 
 --анонимный запрос для проверки
-DO $$
-select 
-    Альпинисты.ID_Альпиниста as id
-    , F_countClimbings_climber(Альпинисты.ID_Альпиниста) as count_all_climbings
-    , F_countClimbings_climber(Альпинисты.ID_Альпиниста, now()::date, 30) as count_30days_climbings
-from Альпинисты
-$$
+-- DO $$
+-- BEGIN
+    SELECT 
+        Альпинисты.ID_Альпиниста as id,
+        F_countClimbings_climber(Альпинисты.ID_Альпиниста) as count_all_climbings,
+        F_countClimbings_climber(Альпинисты.ID_Альпиниста, now()::date, 30) as count_30days_climbings
+    FROM Альпинисты;
+-- END;
+-- $$LANGUAGE plpgsql;
 
 -- 6.2. Написать функцию, которая для заданной вершины возвращает среднюю длительность восхождений в днях. Значение может рассчитываться за
 -- конкретный сезон и/или для конкретного альпиниста. Принадлежность восхождения сезону определяется по дате начала, если восхождение ещё не
