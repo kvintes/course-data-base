@@ -44,6 +44,35 @@ $$ language plpgsql;
 -- конкретный сезон и/или для конкретного альпиниста. Принадлежность восхождения сезону определяется по дате начала, если восхождение ещё не
 -- завершено, то учитывается число прошедших с его начала дней. Функция имеет три аргумента: id_вершины, сезон (номер от 1 до 4),
 -- id_альпиниста. Только первый аргумент является обязательным. Предусмотреть вариант вызова функции без необязательных аргументов.
+
+drop function if exists F_avg_durationClimbing;
+create or replace function F_avg_durationClimbing(
+    f_ID_Вершины integer
+    , f_ID_Альпиниста integer default -1
+    , f_data date default now()::date
+    , f_N_days integer default 100000
+) returns integer as $$
+declare
+
+;
+begin
+    select 
+    
+    ;
+    return ;
+end;
+$$ language plpgsql;
+
+--анонимный запрос для проверки
+-- DO $$
+-- BEGIN
+    SELECT 
+        Альпинисты.ID_Альпиниста as id,
+        F_countClimbings_climber(Альпинисты.ID_Альпиниста) as count_all_climbings,
+        F_countClimbings_climber(Альпинисты.ID_Альпиниста, now()::date, 30) as count_30days_climbings
+    FROM Альпинисты;
+-- END;
+-- $$LANGUAGE plpgsql;
 -- 6.3. Написать процедуру, которая формирует календарь восхождений для заданного альпиниста. (id_альпиниста и год – параметры функции).
 -- Формат вывода:
 -- ------------------------------------------------------
