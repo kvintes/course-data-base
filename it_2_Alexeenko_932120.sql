@@ -45,17 +45,27 @@ $$ language plpgsql;
 -- завершено, то учитывается число прошедших с его начала дней. Функция имеет три аргумента: id_вершины, сезон (номер от 1 до 4),
 -- id_альпиниста. Только первый аргумент является обязательным. Предусмотреть вариант вызова функции без необязательных аргументов.
 
-drop function if exists F_avg_durationClimbing;
-create or replace function F_avg_durationClimbing(
+drop function if exists F_avg_durationClimbings;
+create or replace function F_avg_durationClimbings(
     f_ID_Вершины integer
     , f_ID_Альпиниста integer default -1
     , f_data date default now()::date
     , f_N_days integer default 100000
 ) returns integer as $$
 declare
-
+    avg_durationClimbings integer := 0
 ;
 begin
+    if f_ID_Альпиниста != -1
+            select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date)
+            from Вершины 
+            inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
+            inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
+            where 
+                Восхождения.Дата_начала::date >= f_data - interval '1 days' * f_N_days
+                and Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста
+    else 
+    end if;
     select 
     
     ;
@@ -71,6 +81,12 @@ $$ language plpgsql;
         F_countClimbings_climber(Альпинисты.ID_Альпиниста) as count_all_climbings,
         F_countClimbings_climber(Альпинисты.ID_Альпиниста, now()::date, 30) as count_30days_climbings
     FROM Альпинисты;
+-----------------------
+
+select * 
+from Восхождения
+inner join Альпинист_Восхождение 
+where ID_Альпиниста = 0;
 -- END;
 -- $$LANGUAGE plpgsql;
 -- 6.3. Написать процедуру, которая формирует календарь восхождений для заданного альпиниста. (id_альпиниста и год – параметры функции).
