@@ -78,12 +78,35 @@ begin
     end if;-- определяем защиту от дурака
 
 
-    -- if f_ID_Альпиниста != -1
-    -- then
-    -- ;
-    -- else
-    -- ;
-    -- end if;
+    if f_ID_Альпиниста != -1
+	then
+        select COALESCE(sub_avg, 0) into avg_durationClimbings
+        from
+        (
+            select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date) as sub_avg
+            from Вершины 
+            inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
+            inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
+            where 
+                Восхождения.Дата_начала::date >= left_data
+                and Восхождения.Дата_начала::date <= right_date
+                and Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста
+        ) as sub
+        ;
+    else
+        select COALESCE(sub_avg, 0) into avg_durationClimbings
+        from
+        (
+            select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date) as sub_avg
+            from Вершины 
+            inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
+            inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
+            where 
+                Восхождения.Дата_начала::date >= left_data
+                and Восхождения.Дата_начала::date <= right_date
+        ) as sub
+    ; 
+    end if;
     return avg_durationClimbings;
 
 end;
