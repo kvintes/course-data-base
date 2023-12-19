@@ -135,71 +135,56 @@ where Восхождения.id_Вершины = 12
 -- <месяц_2 (без восхождений)>: восхождения не запланировано
 -- <и т. д.> ….
 
-
-drop function if exists P_get_Climbing_calendar;
-drop table if exists Climbing_calendar;
-CREATE TABLE if not exists Climbing_calendar (
-    text_field text
-);
-CREATE OR REPLACE FUNCTION F_get_climbingsPlan_month( --- делаем фунцию, которая получает новый месяц 
-    p_id_альпиниста date ---и возвращает строку вида <Вершина_1>, <дата начала восхождения> – <дата окончания восхождения>;
-    , year integer
-    , month integer
-)RETURNS text as
-$$
-    select
-    from concat(all_names)::text
-    (
-        select concat(rock, ' ', date_start_climbing, ' - ', date_end_climbing, ' ') as all_text_month
-        from
-        (
-            select 
-	        Вершины.Название as rock
-	        , Альпинисты.ФИО, Восхождения.Дата_начала as date_start_climbing
-            , Восхождения.Дата_завершения as date_end_climbing
-        from Восхождения
-        inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
-        inner join Альпинисты on Альпинисты.ID_Альпиниста = Альпинист_Восхождение.ID_Альпиниста
-        inner join Вершины on Вершины.ID_Вершины = Восхождения.ID_Вершины
-        where 
-            Альпинист_Восхождение.ID_Альпиниста = p_id_альпиниста
-            and date_trunc('year', Восхождения.Дата_начала) = make_date(year, 1, 1)
-            and date_trunc('month', Восхождения.Дата_начала) = make_date(year, month, 1)
-        ) as sub_month
-    ) as sub
-    
-;
------------------------------------------------------------------работает с месяцом---пробуем обьединять
-$$ LANGUAGE sql;
-CREATE OR REPLACE FUNCTION P_get_Climbing_calendar(
-    p_id_альпиниста date
-    , year integer
+---вспомогательная функция
+drop function if exists F_get_Climbing_calendar;
+CREATE OR REPLACE FUNCTION F_get_Climbing_calendar(
+    p_id_альпиниста integer,
+    year integer
 ) 
-RETURNS SETOF Climbing_calendar as
-$$
-
-    select
-    from concat(to_char(sub.month, 'Month'),' :\n', all_names)::text
-    <месяц_1>:
---  1. <Вершина_1>, <дата начала восхождения> – <дата окончания восхождения>;
---  2. <Вершина_2>, <дата начала восхождения> – <дата окончания восхождения>;
---  <и т. д.> ….
+RETURNS TABLE (
+    tex text
+)
+LANGUAGE SQL
+AS $$ 
+    select concat('Календарь восхождений для ',(select ФИО from Альпинисты where id_Альпиниста = p_id_альпиниста) ,' на ' ,year ,' год: ' ,STRING_AGG(total_mrak.mrak, E'\t'))
+    from
     (
-        select 
-            date_trunc('month', Восхождения.Дата_начала) as month
-	        , Вершины.Название
-	        , Альпинисты.ФИО, Восхождения.Дата_начала, Восхождения.Дата_завершения
-        from Восхождения
-        inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
-        inner join Альпинисты on Альпинисты.ID_Альпиниста = Альпинист_Восхождение.ID_Альпиниста
-        inner join Вершины on Вершины.ID_Вершины = Восхождения.ID_Вершины
-        where 
-            date_trunc('year', Восхождения.Дата_начала) = make_date(year, 1, 1)
-    ) as sub
-    
-;
-;
-$$ LANGUAGE sql;
+	    select concat(mrak_sub.s_month, ': ', E'\t' , mrak_sub.s_text) as mrak
+	    from 
+	    (
+	    	select
+	    		case 
+	    			when sub.climbings_plan ILIKE 'восхождения не запланировано'
+	    			then concat(sub.month, ' (без восхождений)')
+	    			else concat(sub.month, '')
+	    		end as s_month
+	    		, sub.climbings_plan as s_text
+	    	from 
+        	(
+	    		select 
+            		extract('month' from g.m::date)::integer AS month
+          			, F_get_climbingsPlan_month(p_id_альпиниста, year, extract('month' from g.m::date)::integer) as climbings_plan
+        		FROM generate_series('2022-01-01'::timestamp, '2022-12-01'::timestamp, '1 month') g(m)
+        		cross join Альпинисты
+        		where 
+            		Альпинисты.id_Альпиниста = p_id_альпиниста
+	    	) as sub
+	    )as mrak_sub
+    ) as total_mrak
+	
+$$;
+
+SELECT * FROM F_get_Climbing_calendar(7, 2023);
+SELECT id_Альпиниста, F_get_Climbing_calendar(id_Альпиниста, 2023) FROM Альпинисты;
+
+
+
+
+
+
+
+
+
 
 -- 6.4. Написать процедуру, которая выполняете копирование всех данных об указанном альпинисте, включая восхождения. Аргумент процедуры -
 -- id_альпиниста. Для скопированной записи ставится отметка “копия” в поле ФИО.
