@@ -49,18 +49,18 @@ $$ language plpgsql;
 drop function if exists F_avg_durationClimbings;
 create or replace function F_avg_durationClimbings(
     f_ID_Вершины integer
-    , f_season integer
+    , f_season integer default -1
     , f_ID_Альпиниста integer default -1
-) returns integer as $$
+) returns numeric as $$
 declare
-    avg_durationClimbings integer := 0;
+    avg_durationClimbings numeric := 0;
     left_data date := date_trunc('year', current_timestamp)::date;
     right_date date := (date_trunc('year', current_timestamp) + interval '1 month'*3 - interval '1 day')::date;
-    temp_date date := (interval '1 month'*3)::date;
+    temp_date interval := (interval '1 month'*3);
 begin
     if f_season > 4 or f_season < 1
-    then f_season := 1
-    ;
+    then 
+        right_date := right_date + temp_date*3;
     end if; -- защита от дурака
 
     if f_season = 2 
@@ -74,7 +74,6 @@ begin
     else
         left_data :=  left_data + temp_date*3;
         right_date := right_date + temp_date*3;
-
     end if;-- определяем защиту от дурака
 
 
@@ -83,26 +82,28 @@ begin
         select COALESCE(sub_avg, 0) into avg_durationClimbings
         from
         (
-            select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date) as sub_avg
+            select avg(COALESCE(Восхождения.Дата_завершения::date, current_date::date) - Восхождения.Дата_начала::date) as sub_avg
             from Вершины 
             inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
             inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
             where 
-                Восхождения.Дата_начала::date >= left_data
+				Вершины.ID_Вершины = f_ID_Вершины
+                and Восхождения.Дата_начала::date >= left_data
                 and Восхождения.Дата_начала::date <= right_date
-                and Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста
+				and Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста
         ) as sub
         ;
     else
         select COALESCE(sub_avg, 0) into avg_durationClimbings
         from
         (
-            select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date) as sub_avg
+            select avg(COALESCE(Восхождения.Дата_завершения::date, current_date::date) - Восхождения.Дата_начала::date) as sub_avg
             from Вершины 
             inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
             inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
             where 
-                Восхождения.Дата_начала::date >= left_data
+				Вершины.ID_Вершины = f_ID_Вершины
+                and Восхождения.Дата_начала::date >= left_data
                 and Восхождения.Дата_начала::date <= right_date
         ) as sub
     ; 
@@ -111,6 +112,18 @@ begin
 
 end;
 $$ language plpgsql;
+---проверочный запрос 6.2
+select F_avg_durationClimbings(12) as avg_duration;
+select F_avg_durationClimbings(12, 3) as avg_duration;
+select F_avg_durationClimbings(12, 2) as avg_duration;
+select F_avg_durationClimbings(12, 2, 0) as avg_duration;
+select F_avg_durationClimbings(12, 2, 1) as avg_duration;
+select * 
+from Вершины
+inner join Восхождения on Восхождения.id_Вершины = Вершины.id_Вершины
+where Восхождения.id_Вершины = 12
+;
+
 
 
 
