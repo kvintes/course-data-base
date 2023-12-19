@@ -179,7 +179,7 @@ SELECT id_Альпиниста, F_get_Climbing_calendar(id_Альпиниста,
 
 
 
-
+---ЗАКОНЧИЛИ---
 
 
 
