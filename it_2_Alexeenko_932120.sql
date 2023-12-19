@@ -53,33 +53,50 @@ create or replace function F_avg_durationClimbings(
     , f_ID_Альпиниста integer default -1
 ) returns integer as $$
 declare
-    avg_durationClimbings integer := 0
-    left_data timestamp := date_trunc('year', current_timestamp)
-    right_date timestamp := (date_trunc('year', current_timestamp) + interval '1 month'*4 - interval '1 day')
-;
+    avg_durationClimbings integer := 0;
+    left_data date := date_trunc('year', current_timestamp)::date;
+    right_date date := (date_trunc('year', current_timestamp) + interval '1 month'*3 - interval '1 day')::date;
+    temp_date date := (interval '1 month'*3)::date;
 begin
     if f_season > 4 or f_season < 1
     then f_season := 1
     ;
-    end if;
-    
-    if
-    if f_ID_Альпиниста != -1
-    then
-    ;
+    end if; -- защита от дурака
+
+    if f_season = 2 
+    then 
+        left_data :=  left_data + temp_date;
+        right_date := right_date + temp_date;
+    elsif f_season = 3
+    then 
+        left_data :=  left_data + temp_date*2;
+        right_date := right_date + temp_date*2;
     else
-    ;
-    end if;
+        left_data :=  left_data + temp_date*3;
+        right_date := right_date + temp_date*3;
+
+    end if;-- определяем защиту от дурака
+
+
+    -- if f_ID_Альпиниста != -1
+    -- then
+    -- ;
+    -- else
+    -- ;
+    -- end if;
     return avg_durationClimbings;
 
+end;
+$$ language plpgsql;
 
 
 
 
 
 
-
-
+--------------------------
+select (date_trunc('year', current_timestamp) + interval '1 month'*2 - interval '1 day')::date
+;
 
     if f_ID_Альпиниста != -1
         select COALESCE(sub_avg, 0) into avg_durationClimbings
