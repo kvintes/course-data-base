@@ -58,3 +58,43 @@ $$;
 
 CALL P_get_Climbing_calendar(7, 2023);
 --- видим тело процедуры
+
+
+drop PROCEDURE if exists P_get_Climbing_calendar;
+CREATE OR replace PROCEDURE  P_get_Climbing_calendar(
+    p_id_альпиниста integer,
+    year integer
+) 
+LANGUAGE plpgsql
+AS $$ 
+begin
+    RAISE NOTICE '%', 
+    select concat('Календарь восхождений для ',(select ФИО from Альпинисты where id_Альпиниста = p_id_альпиниста) ,' на ' ,year ,' год: ' ,STRING_AGG(total_mrak.mrak, E'\t'))
+    from
+    (
+	    select concat(mrak_sub.s_month, ': ', E'\t' , mrak_sub.s_text) as mrak
+	    from 
+	    (
+	    	select
+	    		case 
+	    			when sub.climbings_plan ILIKE 'восхождения не запланировано'
+	    			then concat(sub.month, ' (без восхождений)')
+	    			else concat(sub.month, '')
+	    		end as s_month
+	    		, sub.climbings_plan as s_text
+	    	from 
+        	(
+	    		select 
+            		extract('month' from g.m::date)::integer AS month
+          			, F_get_climbingsPlan_month(p_id_альпиниста, year, extract('month' from g.m::date)::integer) as climbings_plan
+        		FROM generate_series('2022-01-01'::timestamp, '2022-12-01'::timestamp, '1 month') g(m)
+        		cross join Альпинисты
+        		where 
+            		Альпинисты.id_Альпиниста = p_id_альпиниста
+	    	) as sub
+	    )as mrak_sub
+    ) as total_mrak
+    ;
+end;	
+$$;
+CALL P_get_Climbing_calendar(7, 2023);
