@@ -1,8 +1,8 @@
 -- 6. Написать процедуры и функции, согласно условиям. Все процедуры и функции при необходимости должны включать обработчики исключений.
 -- Названия функций: F_<имя>. Формат названий процедур: P_<имя>. Написать анонимные блоки или запросы для проверки работы процедур и
 -- функций.
-
 SET search_path TO it_2;
+
 -- 6.1. Написать функцию, которая возвращает количество восхождений для заданного альпиниста в указанный период (id_альпиниста и промежуток
 -- времени – аргументы функции). Если промежуток времени не указан, считается количество за всё время.
 
@@ -281,182 +281,66 @@ $$ LANGUAGE plpgsql;
 
 CALL P_copy_info_Альпинист(7);
 
+-- 7. Создать триггеры, включить обработчики исключений. Написать скрипты для проверки. При необходимости снять ограничения (если
+-- ограничение мешает проверить работу триггера).
+-- 7.1. Написать триггер, который активизируются при изменении содержимого таблицы “Восхождения” и проверяет, чтобы возраст альпинистов,
+-- совершающих восхождения на вершины высотой более 1500 м был более 21 года. Предельную высоту и возраст оформить как константы.
+DROP TRIGGER IF EXISTS T_Восхождения_check_age ON Восхождения;
+--drop function if exists T_Восхождения_check_age;
+CREATE or replace FUNCTION T_Восхождения_check_age() RETURNS trigger AS $T_Восхождения_check_age$
+declare
+    lim_age integer = 1000;
+    lim_height integer = 1500;
+    orders_cursor CURSOR for (
+    select 
+		age(current_date, Дата_рождения) > interval '1 year' * lim_age as CH_flag_height_age
+	from Альпинисты
+	inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Альпиниста = Альпинисты.ID_Альпиниста
+	inner join Восхождения on Восхождения.ID_Восхождения = Альпинист_Восхождение.ID_Восхождения
+	inner join Вершины on Вершины.ID_Вершины = Восхождения.ID_Вершины
+	where 
+		Вершины.Высота > lim_height
+    )
+	;
+BEGIN
+    FOR row IN orders_cursor LOOP
+        IF row.CH_flag_height_age::boolean = false
+        	then RAISE EXCEPTION 'table Восхождения cannot be update';
+        end if;
+	end loop;
+    return NEW;
+END;
+$T_Восхождения_check_age$ LANGUAGE plpgsql;  
 
 
-select * from Восхождения;
-DELETE FROM Восхождения *
-where Восхождения.ID_Восхождения not in 
-(select distinct on (Дата_начала, Дата_завершения, ID_Вершины, Дней_восхождения) Восхождения.ID_Восхождения from Восхождения)
+CREATE or replace TRIGGER T_Восхождения_check_age BEFORE INSERT OR UPDATE ON Восхождения
+    FOR EACH ROW EXECUTE PROCEDURE T_Восхождения_check_age();
+
+
+ALTER TABLE Альпинист_Восхождение 
+drop constraint if exists FK_Альпинист_Восние__Восхождения;
+
+delete from Восхождения * where Восхождения.id_Восхождения=9;
+
+insert into Восхождения (id_Восхождения, Дата_начала, Дата_завершения, id_Вершины, Дней_восхождения)
+values (9, '2023-02-20 00:00:00', '2023-04-20 00:00:00', 9, 59)
 ;
-select * from Восхождения;
 
--- 6.5. Написать один или несколько сценариев (анонимных блока) демонстрирующий работу процедур и функций из п. 1-4.
--- Требование:
--- - Включение в запрос (для функций)
--- - Для каждой процедуры не менее 3-х примеров работы с различными значениями аргументов.
--- - Комментарии для каждого сценария, описывающие суть примера и результат.
-
-
-
--- --------------------------
--- select (date_trunc('year', current_timestamp) + interval '1 month'*2 - interval '1 day')::date
--- ;
-
---     if f_ID_Альпиниста != -1
---         select COALESCE(sub_avg, 0) into avg_durationClimbings
---         from
---         (
---             select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date) as sub_avg
---             from Вершины 
---             inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
---             inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
---             where 
---                 Восхождения.Дата_начала::date >= f_data - interval '1 days' * f_N_days
---                 and Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста
---         ) as sub
---         ;
---     else
---         select COALESCE(sub_avg, 0) into avg_durationClimbings
---         from
---         (
---             select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date) as sub_avg
---             from Вершины 
---             inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
---             inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
---             where 
---                 Восхождения.Дата_начала::date >= f_data - interval '1 days' * f_N_days
---         ) as sub
---     ; 
---     end if;
---     return avg_durationClimbings;
--- end;
--- $$ language plpgsql;
+-- 7.2. Написать триггер, который сохраняет статистику изменений таблицы «Восхождения» в таблице «Восхождения_Статистика». В таблице
+-- «Восхождения_Статистика» хранится дата изменения, тип изменения (insert, update, delete). Триггер также выводит на экран сообщение с
+-- указанием количества дней, прошедших со дня последнего изменения.
+create table if not EXISTS it_2.Восхождения_Статистика
+(
+    id integer not null
+    , text_change text not null
+    , constraint PK_Альпинист_Восхождение primary key (id)
+)
+;
+-- 7шаг Восхождения возможность вставки кортежа без указания первичного ключа +
+CREATE SEQUENCE IF NOT EXISTS it_2.Восхождения_Статистика_seq MINVALUE 0;
+alter TABLE Восхождения_Статистика alter column id set DEFAULT nextval('Восхождения_Статистика_seq');
+ALTER SEQUENCE Восхождения_Статистика_seq OWNED BY Восхождения_Статистика.id;
 
 
-
-
-
--- -----------------------------------
-
--- drop function if exists F_avg_durationClimbings;
--- create or replace function F_avg_durationClimbings(
---     f_ID_Вершины integer
---     , f_ID_Альпиниста integer default -1
---     , f_data date default now()::date
---     , f_N_days integer default 100000
--- ) returns integer as $$
--- declare
---     avg_durationClimbings integer := 0
--- ;
--- begin
---     if f_ID_Альпиниста != -1
---         select COALESCE(sub_avg, 0) into avg_durationClimbings
---         from
---         (
---             select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date) as sub_avg
---             from Вершины 
---             inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
---             inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
---             where 
---                 Восхождения.Дата_начала::date >= f_data - interval '1 days' * f_N_days
---                 and Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста
---         ) as sub
---         ;
---     else
---         select COALESCE(sub_avg, 0) into avg_durationClimbings
---         from
---         (
---             select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date) as sub_avg
---             from Вершины 
---             inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
---             inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
---             where 
---                 Восхождения.Дата_начала::date >= f_data - interval '1 days' * f_N_days
---         ) as sub
---     ; 
---     end if;
---     return avg_durationClimbings;
--- end;
--- $$ language plpgsql;
-
--- --анонимный запрос для проверки
--- -- DO $$
--- -- BEGIN
---     SELECT 
---         Альпинисты.ID_Альпиниста as id,
---         F_countClimbings_climber(Альпинисты.ID_Альпиниста) as count_all_climbings,
---         F_countClimbings_climber(Альпинисты.ID_Альпиниста, now()::date, 30) as count_30days_climbings
---     FROM Альпинисты;
--- -----------------------
--- --разобраться с функцией и ее тестированием
--- drop function if exists F_avg_durationClimbings;
--- create or replace function F_avg_durationClimbings(
---     f_ID_Вершины integer
---     , f_ID_Альпиниста integer default -1
---     , f_data date default now()::date
---     , f_N_days integer default 100000
--- ) returns integer as $$
--- declare
---     avg_durationClimbings integer := 0
--- ;
--- begin
---     if f_ID_Альпиниста != -1
--- 	then
---         select COALESCE(sub_avg, 0) into avg_durationClimbings
---         from
---         (
---             select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date) as sub_avg
---             from Вершины 
---             inner join Восхождения on Восхождения.ID_Вершины = f_ID_Вершины
---             inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
---             where 
---                 Восхождения.Дата_начала::date >= f_data - interval '1 days' * f_N_days
---                 and Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста
---         ) as sub
---         ;
---     else
---         select COALESCE(sub_avg, 0) into avg_durationClimbings
---         from
---         (
---             select avg(COALESCE(Восхождения.Дата_завершения::date, f_data::date) - Восхождения.Дата_начала::date) as sub_avg
---             from Вершины 
---             inner join Восхождения on Восхождения.ID_Вершины = f_ID_Вершины
---             inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
---             where 
---                 Восхождения.Дата_начала::date >= f_data - interval '1 days' * f_N_days
---         ) as sub
---     ; 
---     end if;
---     return avg_durationClimbings;
--- end;
--- $$ language plpgsql;
--- SELECT 
---         Альпинисты.ID_Альпиниста as id,
---         F_avg_durationClimbings(Альпинисты.ID_Альпиниста, 1, now()::date, 200) as count_all_climbings
---         --F_avg_durationClimbings(Альпинисты.ID_Альпиниста, Альпинисты.ID_Альпиниста, now()::date, 10) as count_15days_climbings
---     FROM Альпинисты;
-
--- select * 
--- from Восхождения
--- inner join Альпинист_Восхождение 
--- where ID_Альпиниста = 0;
--- -- END;
--- -- $$LANGUAGE plpgsql;
--- -- 6.3. Написать процедуру, которая формирует календарь восхождений для заданного альпиниста. (id_альпиниста и год – параметры функции).
--- -- Формат вывода:
--- -- ------------------------------------------------------
--- -- Календарь восхождений для <ФИО> на <год> год:
--- -- <месяц_1>:
--- --  1. <Вершина_1>, <дата начала восхождения> – <дата окончания восхождения>;
--- --  2. <Вершина_2>, <дата начала восхождения> – <дата окончания восхождения>;
--- --  <и т. д.> ….
--- -- <месяц_2 (без восхождений)>: восхождения не запланировано
--- -- <и т. д.> ….
--- -- ------------------------------------------------------
--- -- 6.4. Написать процедуру, которая выполняете копирование всех данных об указанном альпинисте, включая восхождения. Аргумент процедуры -
--- -- id_альпиниста. Для скопированной записи ставится отметка “копия” в поле ФИО.
--- -- 6.5. Написать один или несколько сценариев (анонимных блока) демонстрирующий работу процедур и функций из п. 1-4.
--- -- Требование:
--- -- - Включение в запрос (для функций)
--- -- - Для каждой процедуры не менее 3-х примеров работы с различными значениями аргументов.
--- -- - Комментарии для каждого сценария, описывающие суть примера и результат.
+-- 7.3. Написать триггер, который при вставке в таблицу “Вершины” проверяет наличие вершины с таким же названием в указанной стране и если
+-- такая вершина есть, вместо вставки обновляет высоту и регион.
