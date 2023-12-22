@@ -286,7 +286,6 @@ CALL P_copy_info_Альпинист(7);
 -- 7.1. Написать триггер, который активизируются при изменении содержимого таблицы “Восхождения” и проверяет, чтобы возраст альпинистов,
 -- совершающих восхождения на вершины высотой более 1500 м был более 21 года. Предельную высоту и возраст оформить как константы.
 DROP TRIGGER IF EXISTS T_Восхождения_check_age ON Восхождения;
---drop function if exists T_Восхождения_check_age;
 CREATE or replace FUNCTION T_Восхождения_check_age() RETURNS trigger AS $T_Восхождения_check_age$
 declare
     lim_age integer = 1000;
@@ -329,18 +328,36 @@ values (9, '2023-02-20 00:00:00', '2023-04-20 00:00:00', 9, 59)
 -- 7.2. Написать триггер, который сохраняет статистику изменений таблицы «Восхождения» в таблице «Восхождения_Статистика». В таблице
 -- «Восхождения_Статистика» хранится дата изменения, тип изменения (insert, update, delete). Триггер также выводит на экран сообщение с
 -- указанием количества дней, прошедших со дня последнего изменения.
+drop table if exists Восхождения_Статистика;
 create table if not EXISTS it_2.Восхождения_Статистика
 (
     id integer not null
+    , date_change date
     , text_change text not null
-    , constraint PK_Альпинист_Восхождение primary key (id)
+    , constraint PK_Восхождения_Статистика primary key (id)
 )
 ;
--- 7шаг Восхождения возможность вставки кортежа без указания первичного ключа +
+drop SEQUENCE if exists Восхождения_Статистика_seq;
 CREATE SEQUENCE IF NOT EXISTS it_2.Восхождения_Статистика_seq MINVALUE 0;
 alter TABLE Восхождения_Статистика alter column id set DEFAULT nextval('Восхождения_Статистика_seq');
 ALTER SEQUENCE Восхождения_Статистика_seq OWNED BY Восхождения_Статистика.id;
 
+DROP TRIGGER IF EXISTS T_save_statistics ON Восхождения;
+CREATE or replace FUNCTION T_save_statistics() RETURNS trigger AS $T_save_statistics$
+BEGIN
+    INSERT INTO Восхождения_Статистика (date_change, text_change)
+    values (current_date, TG_OP);
+    RAISE NOTICE '% количество дней от последнего изменения'
+    , (
+		select current_date - COALESCE(max(Восхождения_Статистика.date_change), current_date)
+		from Восхождения_Статистика
+		)
+	;
+    return NEW;
+END;
+$T_save_statistics$ LANGUAGE plpgsql;  
 
+CREATE or replace TRIGGER T_save_statistics BEFORE INSERT OR UPDATE OR delete ON Восхождения
+    FOR EACH ROW EXECUTE PROCEDURE T_save_statistics();
 -- 7.3. Написать триггер, который при вставке в таблицу “Вершины” проверяет наличие вершины с таким же названием в указанной стране и если
 -- такая вершина есть, вместо вставки обновляет высоту и регион.
