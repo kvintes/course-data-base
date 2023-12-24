@@ -359,5 +359,39 @@ $T_save_statistics$ LANGUAGE plpgsql;
 
 CREATE or replace TRIGGER T_save_statistics BEFORE INSERT OR UPDATE OR delete ON Восхождения
     FOR EACH ROW EXECUTE PROCEDURE T_save_statistics();
+
+insert into Восхождения(id_Восхождения, Дата_начала, Дата_завершения, id_Вершины, Дней_восхождения)
+values(666, '2023-01-24', '2023-03-13', 0, 48);
+select * from Восхождения_Статистика;
+insert into Восхождения(id_Восхождения, Дата_начала, Дата_завершения, id_Вершины, Дней_восхождения)
+values(667, '2023-03-24', '2023-05-13', 0, 50);
+select * from Восхождения_Статистика;
+
 -- 7.3. Написать триггер, который при вставке в таблицу “Вершины” проверяет наличие вершины с таким же названием в указанной стране и если
 -- такая вершина есть, вместо вставки обновляет высоту и регион.
+DROP TRIGGER IF EXISTS T_check_hills ON Вершины;
+CREATE or replace FUNCTION T_check_hills() RETURNS trigger AS $T_check_hills$
+declare
+    t_id_Вершины integer := (select id_Вершины from Вершины 
+							where Вершины.Страна = new.Страна and Вершины.Название ILIKE new.Название);
+BEGIN
+    if t_id_Вершины is null or not TG_OP ilike 'insert'
+    then return new;
+    else
+        UPDATE Вершины SET Высота = new.Высота, region_id = new.region_id
+        WHERE id_Вершины = t_id_Вершины;
+    end if;
+    return NULL;
+END;
+$T_check_hills$ LANGUAGE plpgsql;  
+
+CREATE or replace TRIGGER T_check_hills BEFORE INSERT ON Вершины
+    FOR EACH ROW EXECUTE PROCEDURE T_check_hills();  
+
+select * from Вершины;
+
+insert into Вершины(Название, Высота, Страна, region_id)
+	values ('Эльбрус', 5643, 'Россия', 9);
+
+select * from Вершины;
+
