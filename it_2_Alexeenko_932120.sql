@@ -304,7 +304,7 @@ declare
 BEGIN
     FOR row IN orders_cursor LOOP
         IF row.CH_flag_height_age::boolean = false
-        	then RAISE EXCEPTION 'table Восхождения cannot be update';
+        	then RAISE EXCEPTION 'MY_it_2_EXCEPTION table Восхождения cannot be update';
         end if;
 	end loop;
     return NEW;
@@ -391,7 +391,7 @@ CREATE or replace TRIGGER T_check_hills BEFORE INSERT ON Вершины
 select * from Вершины;
 
 insert into Вершины(Название, Высота, Страна, region_id)
-	values ('Эльбрус', 5643, 'Россия', 9);
+	values ('Эльбрус', 9999, 'Россия', 9);
 
 select * from Вершины;
 
