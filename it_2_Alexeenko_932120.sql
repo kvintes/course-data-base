@@ -10,7 +10,7 @@ drop function if exists F_countClimbings_climber;
 create or replace function F_countClimbings_climber(
     f_ID_Альпиниста integer
     , f_data date default now()::date
-    , f_N_days integer default 100000
+    , f_N_days integer default NULL
 ) returns integer as $$
 declare
     count_climbings integer := 0
@@ -22,7 +22,7 @@ begin
     inner join Восхождения on Восхождения.ID_Восхождения = Альпинист_Восхождение.ID_Восхождения
     where 
         Восхождения.Дата_начала::date <= f_data
-        and Восхождения.Дата_начала::date >= f_data - interval '1 day' * f_N_days
+        and (f_N_days is NULL OR Восхождения.Дата_начала::date >= f_data - interval '1 day' * f_N_days  )
 		and Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста
     ;
     return count_climbings;
