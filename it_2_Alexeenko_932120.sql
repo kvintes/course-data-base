@@ -50,7 +50,7 @@ drop function if exists F_avg_durationClimbings;
 create or replace function F_avg_durationClimbings(
     f_ID_Вершины integer
     , f_season integer default -1
-    , f_ID_Альпиниста integer default -1
+    , f_ID_Альпиниста integer default NULL
 ) returns numeric as $$
 declare
     avg_durationClimbings numeric := 0;
@@ -58,6 +58,11 @@ declare
     right_date date := (date_trunc('year', current_timestamp) + interval '1 month'*3 - interval '1 day')::date;
     temp_date interval := (interval '1 month'*3);
 begin
+    if f_season = -1
+    then 
+        left_data = (select min(Восхождения.Дата_начала::date) from Восхождения);
+    end if; -- считаем за весь период
+
     if f_season > 4 or f_season < 1
     then 
         right_date := right_date + temp_date*3;
@@ -74,40 +79,23 @@ begin
     else
         left_data :=  left_data + temp_date*3;
         right_date := right_date + temp_date*3;
-    end if;-- определяем защиту от дурака
+    end if; -- здесь мы вычисляем промежуток по датам
 
+    select COALESCE(sub_avg, 0) into avg_durationClimbings
+    from
+    (
+        select avg(COALESCE(Восхождения.Дата_завершения::date, current_date::date) - Восхождения.Дата_начала::date) as sub_avg
+        from Вершины 
+        inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
+        inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
+        where 
+			Вершины.ID_Вершины = f_ID_Вершины
+            and Восхождения.Дата_начала::date >= left_data
+            and Восхождения.Дата_начала::date <= right_date
+			and (f_ID_Альпиниста is NULL OR Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста)
+    ) as sub
+    ;
 
-    if f_ID_Альпиниста != -1
-	then
-        select COALESCE(sub_avg, 0) into avg_durationClimbings
-        from
-        (
-            select avg(COALESCE(Восхождения.Дата_завершения::date, current_date::date) - Восхождения.Дата_начала::date) as sub_avg
-            from Вершины 
-            inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
-            inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
-            where 
-				Вершины.ID_Вершины = f_ID_Вершины
-                and Восхождения.Дата_начала::date >= left_data
-                and Восхождения.Дата_начала::date <= right_date
-				and Альпинист_Восхождение.ID_Альпиниста = f_ID_Альпиниста
-        ) as sub
-        ;
-    else
-        select COALESCE(sub_avg, 0) into avg_durationClimbings
-        from
-        (
-            select avg(COALESCE(Восхождения.Дата_завершения::date, current_date::date) - Восхождения.Дата_начала::date) as sub_avg
-            from Вершины 
-            inner join Восхождения on Восхождения.ID_Вершины = Вершины.ID_Вершины
-            inner join Альпинист_Восхождение on Альпинист_Восхождение.ID_Восхождения = Восхождения.ID_Восхождения
-            where 
-				Вершины.ID_Вершины = f_ID_Вершины
-                and Восхождения.Дата_начала::date >= left_data
-                and Восхождения.Дата_начала::date <= right_date
-        ) as sub
-    ; 
-    end if;
     return avg_durationClimbings;
 
 end;
@@ -117,7 +105,7 @@ select F_avg_durationClimbings(12) as avg_duration;
 select F_avg_durationClimbings(12, 3) as avg_duration;
 select F_avg_durationClimbings(12, 2) as avg_duration;
 select F_avg_durationClimbings(12, 2, 0) as avg_duration;
-select F_avg_durationClimbings(12, 2, 1) as avg_duration;
+select F_avg_durationClimbings(12, 2, 6) as avg_duration;
 select * 
 from Вершины
 inner join Восхождения on Восхождения.id_Вершины = Вершины.id_Вершины
@@ -288,7 +276,7 @@ CALL P_copy_info_Альпинист(7);
 DROP TRIGGER IF EXISTS T_Восхождения_check_age ON Восхождения;
 CREATE or replace FUNCTION T_Восхождения_check_age() RETURNS trigger AS $T_Восхождения_check_age$
 declare
-    lim_age integer = 1000;
+    lim_age integer = 21;
     lim_height integer = 1500;
     orders_cursor CURSOR for (
     select 
@@ -375,7 +363,7 @@ declare
     t_id_Вершины integer := (select id_Вершины from Вершины 
 							where Вершины.Страна = new.Страна and Вершины.Название ILIKE new.Название);
 BEGIN
-    if t_id_Вершины is null or not TG_OP ilike 'insert'
+    if t_id_Вершины is null
     then return new;
     else
         UPDATE Вершины SET Высота = new.Высота, region_id = new.region_id
